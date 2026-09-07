@@ -1157,7 +1157,7 @@ function Wordmark({ size = "text-2xl" }) {
     <img
       src={REUNITED_LOGO_SRC}
       alt="REunited"
-      style={{ height: `${height}px`, width: "auto", display: "inline-block" }}
+      style={{ maxHeight: `${height}px`, maxWidth: "100%", width: "auto", height: "auto", display: "inline-block" }}
     />
   );
 }
