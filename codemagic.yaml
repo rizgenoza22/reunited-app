@@ -42,9 +42,9 @@ workflows:
       node: 22
       xcode: latest
 
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.reunited.ph
+  ios_signing:
+    provisioning_profiles:
+    - reunited_app_store
 
       vars:
         XCODE_PROJECT: "App.xcodeproj"
