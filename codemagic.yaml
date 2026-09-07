@@ -1,35 +1,3 @@
-workflows:
-
-  ios-simulator-build:
-    name: iOS Simulator Build (test)
-    max_build_duration: 30
-    instance_type: mac_mini_m2
-
-    environment:
-      node: 22
-
-    scripts:
-      - name: Install npm dependencies
-        script: npm install
-
-      - name: Build web app
-        script: npm run build
-
-      - name: Sync Capacitor iOS
-        script: npx cap sync ios
-
-      - name: Build for iOS Simulator
-        script: |
-          xcodebuild build \
-            -project "ios/App/App.xcodeproj" \
-            -scheme "App" \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator'
-
-    artifacts:
-      - build/**/*.app
-
-
   ios-testflight-build:
     name: REunited iOS TestFlight
     max_build_duration: 60
@@ -41,14 +9,13 @@ workflows:
     environment:
       node: 22
       xcode: latest
-      cocoapods: default
 
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.reunited.ph
 
       vars:
-        XCODE_WORKSPACE: "App.xcworkspace"
+        XCODE_PROJECT: "App.xcodeproj"
         XCODE_SCHEME: "App"
 
     scripts:
@@ -61,11 +28,6 @@ workflows:
       - name: Sync Capacitor iOS
         script: npx cap sync ios
 
-      - name: Install CocoaPods dependencies
-        script: |
-          cd "$CM_BUILD_DIR/ios/App"
-          pod install
-
       - name: Set up iOS code signing
         script: xcode-project use-profiles
 
@@ -74,7 +36,7 @@ workflows:
           cd "$CM_BUILD_DIR/ios/App"
 
           xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
+            --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
 
     artifacts:
