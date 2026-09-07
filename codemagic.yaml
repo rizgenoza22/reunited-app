@@ -63,7 +63,9 @@ workflows:
         script: npx cap sync ios
 
       - name: Set up iOS code signing
-        script: xcode-project use-profiles
+        script: |
+        xcode-project use-profiles \
+        --project "$CM_BUILD_DIR/ios/App/App.xcodeproj"
 
       - name: Build signed IPA
         script: |
