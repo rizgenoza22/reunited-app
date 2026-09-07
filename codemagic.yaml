@@ -42,9 +42,9 @@ workflows:
       node: 22
       xcode: latest
 
-  ios_signing:
-    provisioning_profiles:
-    - reunited_app_store
+      ios_signing:
+        provisioning_profiles:
+          - reunited_app_store
 
       vars:
         XCODE_PROJECT: "App.xcodeproj"
