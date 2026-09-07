@@ -45,6 +45,8 @@ workflows:
       ios_signing:
         provisioning_profiles:
           - reunited_app_store
+        certificates:
+          - "REunited Distribution"
 
       vars:
         XCODE_PROJECT: "App.xcodeproj"
