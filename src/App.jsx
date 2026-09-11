@@ -10916,16 +10916,16 @@ function AdminDashboardScreen({
   }
 
   const stats = [
-    { key: "activeCases", emoji: "ðŸš¨", label: "Active Missing Cases", value: 142, accent: "#E2572B" },
+    { key: "activeCases", emoji: "🚨", label: "Active Missing Cases", value: 142, accent: "#E2572B" },
     {
       key: "userReports",
-      emoji: "ðŸš©",
+      emoji: "🚩",
       label: "User Reports",
-      value: userReportsLoading ? "â€¦" : userReports.length,
+      value: userReportsLoading ? "…" : userReports.length,
       accent: "#E2572B",
     },
-    { key: "messages", emoji: "ðŸ’¬", label: "Messages", value: feedbackMessages.length, accent: "#2F6E62" },
-    { key: "reunitedToday", emoji: "â¤ï¸", label: "Reunited Today", value: 14, accent: "#2F6E62" },
+    { key: "messages", emoji: "💬", label: "Messages", value: feedbackMessages.length, accent: "#2F6E62" },
+    { key: "reunitedToday", emoji: "❤️", label: "Reunited Today", value: 14, accent: "#2F6E62" },
   ];
 
   if (drilldown === "userReports") {
@@ -11082,7 +11082,7 @@ function AdminPendingReportsScreen({
       ) : reports.length === 0 ? (
         <div className="amr-panel rounded-lg p-4 text-center">
           <p className="text-sm mb-3">
-            All caught up â€” no missing reports are waiting
+            All caught up — no missing reports are waiting
             for review.
           </p>
           <button
@@ -11110,7 +11110,7 @@ function AdminPendingReportsScreen({
                   >
                     Report #{report.report_id}
                     {report.pet_id
-                      ? ` Â· Pet #${report.pet_id}`
+                      ? ` · Pet #${report.pet_id}`
                       : ""}
                   </div>
                 </div>
@@ -11227,7 +11227,7 @@ function AdminUserReportsScreen({
         </p>
       ) : reports.length === 0 ? (
         <div className="amr-panel rounded-lg p-4 text-center">
-          <p className="text-sm mb-3">All caught up â€” no pending user reports.</p>
+          <p className="text-sm mb-3">All caught up — no pending user reports.</p>
           <button
             onClick={onRefresh}
             className="amr-btn-secondary px-4 py-2 rounded-md text-sm"
@@ -11283,7 +11283,7 @@ function AdminUserReportsScreen({
                       <span style={{ color: "#6B6459" }}>Related case</span>
                       <span className="font-medium text-right">
                         Report #{report.report_id}
-                        {report.related_pet_name ? ` Â· ${report.related_pet_name}` : ""}
+                        {report.related_pet_name ? ` · ${report.related_pet_name}` : ""}
                       </span>
                     </div>
                   )}
@@ -11366,7 +11366,7 @@ function MessagesDrilldown({ feedbackMessages, onSendReply }) {
       <div className="flex flex-col gap-3 mb-4">
         {feedbackMessages.length === 0 && (
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
-            No messages yet â€” founding members can message Amari with feedback from their Profile tab.
+            No messages yet — founding members can message Amari with feedback from their Profile tab.
           </p>
         )}
         {feedbackMessages.map((m, i) => (
@@ -11391,7 +11391,7 @@ function MessagesDrilldown({ feedbackMessages, onSendReply }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="Reply as Amariâ€¦"
+            placeholder="Reply as Amari…"
             className="amr-chip flex-1 px-3 py-2.5 rounded-md text-sm"
           />
           <button
@@ -11446,7 +11446,7 @@ function AdminDrilldownScreen({
                   <span className="text-xs font-semibold" style={{ color: "#2F6E62" }}>ACTIVE</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  {c.species} Â· owner {c.ownerName} Â· last seen {c.lastSeenLabel} Â· {c.radiusKm} km radius
+                  {c.species} · owner {c.ownerName} · last seen {c.lastSeenLabel} · {c.radiusKm} km radius
                 </div>
               </button>
             ))}
@@ -11457,7 +11457,7 @@ function AdminDrilldownScreen({
       {category === "idReviews" && (
         <div className="flex flex-col gap-3">
           {identityReviews.length === 0 && (
-            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up â€” no pending reviews.</p>
+            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up — no pending reviews.</p>
           )}
           {identityReviews.map((r) => (
             <div key={r.id} className="amr-panel rounded-lg p-3.5">
@@ -11484,7 +11484,7 @@ function AdminDrilldownScreen({
       {category === "photoReviews" && (
         <div className="flex flex-col gap-3">
           {photoReviews.length === 0 && (
-            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up â€” no pending reviews.</p>
+            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up — no pending reviews.</p>
           )}
           {photoReviews.map((r) => (
             <div key={r.id} className="amr-panel rounded-lg p-3.5">
@@ -11494,7 +11494,7 @@ function AdminDrilldownScreen({
                   <span className="text-xs" style={{ color: "#6B6459" }}>{r.timeLabel}</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  Submitted by {r.submitterName} Â· {r.reason}
+                  Submitted by {r.submitterName} · {r.reason}
                 </div>
               </button>
               <div className="flex gap-2">
@@ -11523,7 +11523,7 @@ function AdminDrilldownScreen({
                   <span className="text-xs" style={{ color: "#6B6459" }}>{r.timeLabel}</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  Reported by {r.reportedBy} Â· {r.reason}
+                  Reported by {r.reportedBy} · {r.reason}
                 </div>
               </button>
               <button onClick={() => onResolveReport(r.id)} className="amr-btn-primary w-full py-1.5 rounded-md text-xs">
@@ -11543,11 +11543,11 @@ function AdminDrilldownScreen({
           {reunitedTodayList.map((r) => (
             <button key={r.id} onClick={() => setOpenedItem(r)} className="amr-panel rounded-lg p-3.5 text-left w-full">
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-sm">â¤ï¸ {r.petName}</span>
+                <span className="font-semibold text-sm">❤️ {r.petName}</span>
                 <span className="text-xs" style={{ color: "#6B6459" }}>{r.timeLabel}</span>
               </div>
               <div className="text-xs" style={{ color: "#6B6459" }}>
-                Owner: {r.ownerName}{r.heroName ? ` Â· Hero: ${r.heroName}` : ""}
+                Owner: {r.ownerName}{r.heroName ? ` · Hero: ${r.heroName}` : ""}
               </div>
             </button>
           ))}
@@ -11651,7 +11651,7 @@ function AdminItemDetailScreen({ category, item, onBack, onApproveIdentity, onRe
 // Shared wording so the one-time welcome screen and the re-readable copy on
 // Profile never drift apart into two different messages.
 function amariMessageText(rank) {
-  return `Hi, I'm Amari â€” the person behind REunited.\n\nThank you for taking this first step. By joining, you're not just protecting your own pet if they ever go missing â€” you're becoming one of the helping eyes that brings other people's pets home too.\n\nYou're member #${rank} of our first 100, and I wanted you to hear that from me directly. Welcome to the community â€” it means more than you know.\n\nIf you have pets, please add them to your profile â€” that's what makes the alerts work for you when it matters. And if you ever have feedback, run into a problem, or just want to say something, message me directly. I read every one myself.`;
+  return `Hi, I'm Amari — the person behind REunited.\n\nThank you for taking this first step. By joining, you're not just protecting your own pet if they ever go missing — you're becoming one of the helping eyes that brings other people's pets home too.\n\nYou're member #${rank} of our first 100, and I wanted you to hear that from me directly. Welcome to the community — it means more than you know.\n\nIf you have pets, please add them to your profile — that's what makes the alerts work for you when it matters. And if you ever have feedback, run into a problem, or just want to say something, message me directly. I read every one myself.`;
 }
 
 function FounderWelcomeScreen({ rank, onContinue }) {
@@ -11675,7 +11675,7 @@ function FounderWelcomeScreen({ rank, onContinue }) {
             {para}
           </p>
         ))}
-        <p className="mt-3 font-semibold" style={{ color: "#20291F" }}>â€” Amari</p>
+        <p className="mt-3 font-semibold" style={{ color: "#20291F" }}>— Amari</p>
       </div>
 
       <button onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
