@@ -10858,8 +10858,78 @@ function AdminDashboardScreen({
   const [userReportsLoading, setUserReportsLoading] = useState(true);
   const [userReportsError, setUserReportsError] = useState(null);
   const [reviewingUserReportId, setReviewingUserReportId] = useState(null);
-  const [activeCasesSample] = useState(() => buildActiveCasesSample(10));
-  const [reunitedTodayList] = useState(() => buildReunitedToday(14));
+  const [adminStats, setAdminStats] = useState(null);
+  const [adminStatsLoading, setAdminStatsLoading] = useState(true);
+  const [adminStatsError, setAdminStatsError] = useState(null);
+
+  async function loadAdminDashboardStats() {
+    setAdminStatsLoading(true);
+    setAdminStatsError(null);
+
+    try {
+      const token = localStorage.getItem("access_token");
+
+      if (!token) {
+        throw new Error("Your admin session has expired. Please sign in again.");
+      }
+
+      const response = await fetch(`${API_BASE}/users/admin/dashboard-stats`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const message = Array.isArray(data?.message)
+          ? data.message.join(" ")
+          : data?.message;
+        throw new Error(message || "Unable to load admin dashboard statistics.");
+      }
+
+      setAdminStats(data || null);
+    } catch (error) {
+      console.error("Load admin dashboard stats error:", error);
+      setAdminStatsError(
+        error.message || "Unable to load admin dashboard statistics.",
+      );
+    } finally {
+      setAdminStatsLoading(false);
+    }
+  }
+
+  const activeCasesSample = (Array.isArray(adminStats?.active_cases)
+    ? adminStats.active_cases
+    : []
+  ).map((row) => ({
+    id: `case-${row.report_id}`,
+    reportId: Number(row.report_id),
+    petName: row.pet_name || "Missing Pet",
+    species: "Pet",
+    ownerName: "REunited member",
+    lastSeenLabel: relativeTimeLabel(row.last_seen_at || row.created_at),
+    radiusKm: Number(row.alert_radius_km || 1),
+    lastLocationText: row.last_location_text || "Location reported",
+  }));
+
+  const reunitedTodayList = (Array.isArray(adminStats?.reunited_today)
+    ? adminStats.reunited_today
+    : []
+  ).map((row) => ({
+    id: `reunited-${row.recognition_id}`,
+    recognitionId: Number(row.recognition_id),
+    petName: row.pet_name || "Pet",
+    ownerName: row.owner_name || "REunited member",
+    heroName: row.hero_name || null,
+    timeLabel: relativeTimeLabel(row.created_at),
+  }));
   async function loadAdminUserReports() {
     setUserReportsLoading(true);
     setUserReportsError(null);
@@ -10879,6 +10949,7 @@ function AdminDashboardScreen({
 
   useEffect(() => {
     loadAdminUserReports();
+    loadAdminDashboardStats();
   }, []);
 
   async function handleReviewUserReport(
@@ -10916,7 +10987,15 @@ function AdminDashboardScreen({
   }
 
   const stats = [
-    { key: "activeCases", emoji: "🚨", label: "Active Missing Cases", value: 142, accent: "#E2572B" },
+    {
+      key: "activeCases",
+      emoji: "🚨",
+      label: "Active Missing Cases",
+      value: adminStatsLoading
+        ? "…"
+        : Number(adminStats?.counts?.active_missing_cases || 0),
+      accent: "#E2572B",
+    },
     {
       key: "userReports",
       emoji: "🚩",
@@ -10924,8 +11003,24 @@ function AdminDashboardScreen({
       value: userReportsLoading ? "…" : userReports.length,
       accent: "#E2572B",
     },
-    { key: "messages", emoji: "💬", label: "Messages", value: feedbackMessages.length, accent: "#2F6E62" },
-    { key: "reunitedToday", emoji: "❤️", label: "Reunited Today", value: 14, accent: "#2F6E62" },
+    {
+      key: "messages",
+      emoji: "💬",
+      label: "Unread Messages",
+      value: adminStatsLoading
+        ? "…"
+        : Number(adminStats?.counts?.unread_messages || 0),
+      accent: "#2F6E62",
+    },
+    {
+      key: "reunitedToday",
+      emoji: "❤️",
+      label: "Reunited Today",
+      value: adminStatsLoading
+        ? "…"
+        : Number(adminStats?.counts?.reunited_today || 0),
+      accent: "#2F6E62",
+    },
   ];
 
   if (drilldown === "userReports") {
@@ -10999,7 +11094,7 @@ function AdminDashboardScreen({
         </button>
       </div>
 
-      {userReportsError && (
+      {(userReportsError || adminStatsError) && (
         <div
           className="rounded-md p-3 mb-3 text-sm"
           style={{
@@ -11007,7 +11102,7 @@ function AdminDashboardScreen({
             color: "#B9382B",
           }}
         >
-          {userReportsError}
+          {userReportsError || adminStatsError}
         </div>
       )}
 
@@ -11038,7 +11133,7 @@ function AdminDashboardScreen({
         className="text-xs text-center mt-5"
         style={{ color: "#6B6459" }}
       >
-        User Reports are loaded from the real moderation queue. Normal missing-pet cases do not require staff approval.
+        Dashboard counts and case lists are loaded from the live REunited database. Normal missing-pet cases do not require staff approval.
       </p>
     </div>
   );
@@ -11436,9 +11531,14 @@ function AdminDrilldownScreen({
       {category === "activeCases" && (
         <>
           <p className="text-xs mb-4" style={{ color: "#6B6459" }}>
-            Showing a sample of {activeCasesSample.length} of 142 active cases.
+            Showing {activeCasesSample.length} active case{activeCasesSample.length === 1 ? "" : "s"} from the live database.
           </p>
           <div className="flex flex-col gap-3">
+            {activeCasesSample.length === 0 && (
+              <p className="text-sm italic" style={{ color: "#6B6459" }}>
+                No active missing-pet cases right now.
+              </p>
+            )}
             {activeCasesSample.map((c) => (
               <button key={c.id} onClick={() => setOpenedItem(c)} className="amr-panel rounded-lg p-3.5 text-left w-full">
                 <div className="flex items-center justify-between mb-1">
@@ -11446,7 +11546,8 @@ function AdminDrilldownScreen({
                   <span className="text-xs font-semibold" style={{ color: "#2F6E62" }}>ACTIVE</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  {c.species} · owner {c.ownerName} · last seen {c.lastSeenLabel} · {c.radiusKm} km radius
+                  Last seen {c.lastSeenLabel} · {c.radiusKm} km alert radius
+                  {c.lastLocationText ? ` · ${c.lastLocationText}` : ""}
                 </div>
               </button>
             ))}
@@ -11540,6 +11641,11 @@ function AdminDrilldownScreen({
 
       {category === "reunitedToday" && (
         <div className="flex flex-col gap-3">
+          {reunitedTodayList.length === 0 && (
+            <p className="text-sm italic" style={{ color: "#6B6459" }}>
+              No reunions recorded today yet.
+            </p>
+          )}
           {reunitedTodayList.map((r) => (
             <button key={r.id} onClick={() => setOpenedItem(r)} className="amr-panel rounded-lg p-3.5 text-left w-full">
               <div className="flex items-center justify-between mb-1">
