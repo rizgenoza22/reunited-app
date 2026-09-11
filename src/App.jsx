@@ -91,7 +91,7 @@ function HeartMark({ size = 24, color }) {
 // Change API_BASE if the backend is deployed somewhere other than your own
 // machine.
 // ---------------------------------------------------------------------------
-const API_BASE = "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `${API_BASE}`;
 
 const PRIVACY_VERSION = "2026-09-11";
 const LOCATION_CONSENT_VERSION = "2026-09-11";
@@ -9834,7 +9834,7 @@ function Onboarding({ onComplete, onLoginComplete }) {
     onBack={() => setStage("welcome")}
     onLogin={async ({ email, password }) => {
       try {
-        const response = await fetch("http://localhost:3000/auth/login", {
+        const response = await fetch(`${API_BASE}/auth/login`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -10029,7 +10029,7 @@ function ContactStep({
 
     try {
       const response = await fetch(
-        "http://localhost:3000/auth/send-verification-code",
+        `${API_BASE}/auth/send-verification-code`,
         {
           method: "POST",
           headers: {
@@ -10150,7 +10150,7 @@ function CodeStep({
 
     try {
       const response = await fetch(
-        "http://localhost:3000/auth/verify-code",
+        `${API_BASE}/auth/verify-code`,
         {
           method: "POST",
           headers: {
@@ -10193,7 +10193,7 @@ function CodeStep({
       setIsResending(true);
 
       const response = await fetch(
-        "http://localhost:3000/auth/send-verification-code",
+        `${API_BASE}/auth/send-verification-code`,
         {
           method: "POST",
           headers: {
@@ -11469,7 +11469,7 @@ export default function App() {
       throw new Error("Your session has expired. Please sign in again before deleting your account.");
     }
 
-    const response = await fetch("http://localhost:3000/users/me", {
+    const response = await fetch(`${API_BASE}/users/me`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -11584,7 +11584,7 @@ onComplete={async (profileInfo) => {
     const lastName =
       nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
-    const response = await fetch("http://localhost:3000/auth/register", {
+    const response = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -11611,7 +11611,7 @@ onComplete={async (profileInfo) => {
       return;
     }
 
-    const loginResponse = await fetch("http://localhost:3000/auth/login", {
+    const loginResponse = await fetch(`${API_BASE}/auth/login`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -11664,3 +11664,4 @@ setView("founderWelcome");
     </div>
   );
 }
+
