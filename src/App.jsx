@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   MapPin,
   ChevronLeft,
@@ -21,8 +28,40 @@ import {
   MessageCircle,
   User,
   AlertTriangle,
+  Share2,
 } from "lucide-react";
-
+import {
+  createSighting,
+  uploadSightingPhoto,
+  getNearbyReports,
+  getSightings,
+  getSightingPhotos,
+  getNotifications,
+  getNotificationUnreadCount,
+  updateAlertLocation,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  getMessageThread,
+  sendPrivateMessage,
+  getMessageThreads,
+  getPets,
+  createPet,
+  reportPetMissing,
+  getReports,
+  getReport,
+  updatePetStatus,
+  createReunion,
+  getReunionStories,
+  getHeroRecognitions,
+  getMySightingCount,
+  getMyReportCount,
+  getMyProfile,
+  updateMyProfile,
+  blockUser,
+  reportUser,
+  getAdminUserReports,
+  reviewAdminUserReport,
+} from "./api";
 // The app's icon mark -- the actual approved badge image (navy circle,
 // coral ring, cream heart), embedded as a data URI. Replaces both the
 // generic lucide PawPrint icon and an earlier hand-built SVG approximation.
@@ -52,7 +91,461 @@ function HeartMark({ size = 24, color }) {
 // Change API_BASE if the backend is deployed somewhere other than your own
 // machine.
 // ---------------------------------------------------------------------------
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://localhost:3000";
+
+const PRIVACY_VERSION = "2026-09-11";
+const LOCATION_CONSENT_VERSION = "2026-09-11";
+const TERMS_VERSION = "2026-09-11";
+const COMMUNITY_GUIDELINES_VERSION = "2026-09-11";
+
+async function getMyPrivacyConsents() {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  const response = await fetch(`${API_BASE}/consents/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      "Unable to load privacy consent.";
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  return body;
+}
+
+async function acceptPrivacyConsent(consentType, policyVersion) {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  const response = await fetch(`${API_BASE}/consents/me`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      consent_type: consentType,
+      policy_version: policyVersion,
+    }),
+  });
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      "Unable to save privacy consent.";
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  return body;
+}
+
+
+function LegalAcceptanceModal({ onAccepted }) {
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedGuidelines, setAcceptedGuidelines] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleAccept() {
+    if (!acceptedTerms || !acceptedGuidelines || saving) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await acceptPrivacyConsent(
+        "TERMS_OF_SERVICE",
+        TERMS_VERSION,
+      );
+
+      const data = await acceptPrivacyConsent(
+        "COMMUNITY_GUIDELINES",
+        COMMUNITY_GUIDELINES_VERSION,
+      );
+
+      await onAccepted(data);
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Unable to save your agreement. Please try again.",
+      );
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/50 p-4">
+      <div className="amr-panel rounded-xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="amr-display text-2xl mb-1">
+          REUNITED COMMUNITY AGREEMENT
+        </div>
+
+        <p className="text-sm mb-4" style={{ color: "#6B6459" }}>
+          Before continuing, please review the rules that keep
+          REunited useful and safe for pet owners, finders, and
+          community helpers.
+        </p>
+
+        <div className="rounded-lg border p-3 mb-3 text-sm">
+          <div className="font-semibold mb-2">Terms of Service</div>
+          <ul className="list-disc pl-5 space-y-1" style={{ color: "#6B6459" }}>
+            <li>
+              REunited helps share missing-pet reports, sightings,
+              alerts, messages, and reunion information, but cannot
+              guarantee a pet will be found or every submission is accurate.
+            </li>
+            <li>
+              You are responsible for what you submit and must not
+              post false, unlawful, abusive, infringing, or impersonating content.
+            </li>
+            <li>
+              Do not use REunited to harass, threaten, stalk, scam,
+              dox, exploit, or endanger another person or animal.
+            </li>
+            <li>
+              REunited may review, restrict, hide, or remove content
+              or accounts for safety, abuse prevention, legal compliance,
+              or rule enforcement.
+            </li>
+            <li>
+              For emergencies or immediate danger, contact the
+              appropriate authorities rather than relying only on REunited.
+            </li>
+          </ul>
+        </div>
+
+        <div className="rounded-lg border p-3 mb-4 text-sm">
+          <div className="font-semibold mb-2">Community Guidelines</div>
+          <ul className="list-disc pl-5 space-y-1" style={{ color: "#6B6459" }}>
+            <li>Report real missing-pet and sighting information only.</li>
+            <li>
+              Respect privacy. Do not publicly expose private contact
+              details, identification documents, home addresses, or
+              private exact GPS data.
+            </li>
+            <li>No harassment, threats, scams, spam, or impersonation.</li>
+            <li>
+              Use only photos and content you are entitled to share.
+            </li>
+            <li>
+              Use REunited's reporting and moderation tools for
+              suspicious activity instead of retaliating.
+            </li>
+          </ul>
+        </div>
+
+        <label className="flex items-start gap-2 mb-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={acceptedTerms}
+            onChange={(event) =>
+              setAcceptedTerms(event.target.checked)
+            }
+          />
+          <span>
+            I have read and agree to the REunited Terms of Service.
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 mb-4 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={acceptedGuidelines}
+            onChange={(event) =>
+              setAcceptedGuidelines(event.target.checked)
+            }
+          />
+          <span>
+            I agree to follow the REunited Community Guidelines.
+          </span>
+        </label>
+
+        {error && (
+          <div className="text-xs mb-3" style={{ color: "#B23A20" }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={
+            !acceptedTerms ||
+            !acceptedGuidelines ||
+            saving
+          }
+          onClick={handleAccept}
+          className="amr-btn-primary w-full py-3 rounded-md disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Agree & Enter REunited"}
+        </button>
+
+        <p
+          className="text-[11px] mt-3 text-center"
+          style={{ color: "#8A8175" }}
+        >
+          Agreement to the current Terms and Community Guidelines
+          is required to use the authenticated REunited community.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PrivacyConsentModal({ onAccept, onCancel }) {
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedLocation, setAcceptedLocation] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleAccept() {
+    if (!acceptedPrivacy || !acceptedLocation || saving) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await acceptPrivacyConsent(
+        "PRIVACY_POLICY",
+        PRIVACY_VERSION,
+      );
+
+      const data = await acceptPrivacyConsent(
+        "LOCATION_DATA",
+        LOCATION_CONSENT_VERSION,
+      );
+
+      await onAccept(data);
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Unable to save your privacy choices. Please try again.",
+      );
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/40 p-4">
+      <div className="amr-panel rounded-xl p-5 w-full max-w-sm">
+        <div className="amr-display text-2xl mb-1">
+          PRIVACY & LOCATION
+        </div>
+
+        <p
+          className="text-sm mb-4"
+          style={{ color: "#6B6459" }}
+        >
+          REunited uses location when you choose location-based
+          features, such as missing-pet alerts, last-seen pins,
+          nearby alerts, and sighting reports. Your exact GPS is
+          not displayed publicly; REunited applies its location
+          privacy rules to community-facing information.
+        </p>
+
+        <label className="flex items-start gap-2 mb-3 text-sm">
+          <input
+            type="checkbox"
+            checked={acceptedPrivacy}
+            onChange={(event) =>
+              setAcceptedPrivacy(event.target.checked)
+            }
+            className="mt-1"
+          />
+          <span>
+            I have read and agree to the REunited Privacy Policy.
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 mb-4 text-sm">
+          <input
+            type="checkbox"
+            checked={acceptedLocation}
+            onChange={(event) =>
+              setAcceptedLocation(event.target.checked)
+            }
+            className="mt-1"
+          />
+          <span>
+            I allow REunited to use my device location when I
+            choose location-based features.
+          </span>
+        </label>
+
+        {error && (
+          <div
+            className="text-xs mb-3"
+            style={{ color: "#B23A20" }}
+          >
+            {error}
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={
+            !acceptedPrivacy ||
+            !acceptedLocation ||
+            saving
+          }
+          onClick={handleAccept}
+          className="amr-btn-primary w-full py-3 rounded-md mb-2 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Agree & Continue"}
+        </button>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="amr-btn-secondary w-full py-3 rounded-md"
+        >
+          Not Now
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const WEB_PUSH_PUBLIC_KEY =
+  typeof import.meta !== "undefined"
+    ? import.meta.env?.VITE_WEB_PUSH_PUBLIC_KEY || ""
+    : "";
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+async function registerBrowserPushDevice() {
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("This browser does not support service workers.");
+  }
+
+  if (!("PushManager" in window)) {
+    throw new Error("This browser does not support web push notifications.");
+  }
+
+  if (!("Notification" in window)) {
+    throw new Error("This browser does not support notifications.");
+  }
+
+  if (!window.isSecureContext && window.location.hostname !== "localhost") {
+    throw new Error(
+      "Push notifications require HTTPS (localhost is allowed during development).",
+    );
+  }
+
+  if (!WEB_PUSH_PUBLIC_KEY) {
+    throw new Error(
+      "VITE_WEB_PUSH_PUBLIC_KEY is not configured in the frontend .env file.",
+    );
+  }
+
+  const permission = await Notification.requestPermission();
+
+  if (permission !== "granted") {
+    throw new Error(
+      permission === "denied"
+        ? "Notification permission was denied in your browser."
+        : "Notification permission was not granted.",
+    );
+  }
+
+  const registration = await navigator.serviceWorker.register(
+    "/reunited-sw.js",
+    { scope: "/" },
+  );
+
+  await navigator.serviceWorker.ready;
+
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(WEB_PUSH_PUBLIC_KEY),
+    });
+  }
+
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  const response = await fetch(`${API_BASE}/notifications/push-devices`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      push_token: JSON.stringify(subscription.toJSON()),
+      platform: "WEB",
+      provider: "WEB_PUSH",
+      device_id: `${navigator.userAgent.slice(0, 180)}|${window.location.origin}`,
+    }),
+  });
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      `Unable to register this device (${response.status})`;
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  localStorage.setItem("reunited_push_registered", "true");
+
+  return body;
+}
+
 
 async function apiFetch(path, options) {
   let res;
@@ -81,9 +574,192 @@ async function apiFetch(path, options) {
   return body;
 }
 
+async function updateSightingOwnerStatus(reportId, sightingId, status) {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  let response;
+  try {
+    response = await fetch(
+      `${API_BASE}/reports/${reportId}/sightings/${sightingId}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      },
+    );
+  } catch {
+    throw new Error(
+      "Unable to reach the REunited backend. Make sure the backend is running.",
+    );
+  }
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Leave body as null if the backend returns no JSON.
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      `Unable to verify sighting (${response.status})`;
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  return body;
+}
+
+
+async function reportSightingAbuseToBackend(
+  reportId,
+  sightingId,
+  reason,
+  details = "",
+) {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  let response;
+  try {
+    response = await fetch(
+      `${API_BASE}/reports/${reportId}/sightings/${sightingId}/report-abuse`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          reason,
+          details: details?.trim() || undefined,
+        }),
+      },
+    );
+  } catch {
+    throw new Error(
+      "Unable to reach the REunited backend. Make sure the backend is running.",
+    );
+  }
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Leave body null if the backend returns no JSON.
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      `Unable to report this sighting (${response.status})`;
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  return body;
+}
+
+
+async function getPotentialSightingMatches(reportId) {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  const response = await fetch(
+    `${API_BASE}/reports/${reportId}/sightings/potential-matches`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Leave body null if there is no JSON response.
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      `Unable to load potential sighting matches (${response.status})`;
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  return body;
+}
+
+async function updatePotentialSightingMatchStatus(
+  reportId,
+  sightingId,
+  status,
+) {
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  const response = await fetch(
+    `${API_BASE}/reports/${reportId}/sightings/potential-matches/${sightingId}/status`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    },
+  );
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Leave body null if there is no JSON response.
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      `Unable to review potential match (${response.status})`;
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  return body;
+}
+
+
 const PETS_SEED = [
   {
     id: "milo",
+    backendPetId: 3,
     name: "Milo",
     species: "Dog",
     breed: "Beagle mix",
@@ -338,16 +1014,301 @@ const MOCK_REPLY_POOL = [
 // admin typing on the Admin dashboard, not a canned auto-reply -- see
 // sendAdminReply in App, and the reply box on the Messages drilldown.
 const ADMIN_FEEDBACK_THREAD_ID = "admin-feedback";
+function relativeTimeLabel(dateValue) {
+  if (!dateValue) {
+    return "recently";
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "recently";
+  }
+
+  const diffMinutes = Math.max(
+    0,
+    Math.round(
+      (Date.now() - date.getTime()) / 60000,
+    ),
+  );
+
+  if (diffMinutes < 1) {
+    return "just now";
+  }
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min ago`;
+  }
+
+  const hours = Math.floor(
+    diffMinutes / 60,
+  );
+
+  if (hours < 24) {
+    return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  }
+
+  const days = Math.floor(
+    hours / 24,
+  );
+
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function mapNearbyReport(report) {
+  const reportId = Number(
+    report.report_id,
+  );
+
+  const distanceMeters = Number(
+    report.distance_meters ?? 0,
+  );
+
+  return {
+    id: `backend-report-${reportId}`,
+    reportId,
+
+    petId:
+      report.pet_id != null
+        ? Number(report.pet_id)
+        : null,
+
+    name:
+      report.name ||
+      "Missing Pet",
+
+    species:
+      report.report_type === "PET"
+        ? "Pet"
+        : report.report_type ||
+          "Pet",
+
+    breed: "Missing pet",
+
+    color: "#2F6E62",
+
+    photos: [
+      report.pet_photo_url,
+      report.photo_url,
+      report.pet?.photo_url,
+      report.pet?.photoUrl,
+    ].filter(Boolean).slice(0, 1),
+
+    ownerName: "REunited member",
+
+    lastSeenLabel:
+      relativeTimeLabel(
+        report.last_seen_at,
+      ),
+
+    distanceLabel:
+      `${(
+        distanceMeters / 1000
+      ).toFixed(1)} km away`,
+
+    lastLocationText:
+      report.last_location_text ||
+      "Location reported",
+
+    description:
+      report.description || "",
+
+    latitude:
+      report.latitude != null
+        ? Number(report.latitude)
+        : null,
+
+    longitude:
+      report.longitude != null
+        ? Number(report.longitude)
+        : null,
+
+    status: report.status,
+
+    isBackendReport: true,
+  };
+}
+function publicDisplayName(value) {
+  const name = String(value || "").trim();
+  if (!name) return "REunited member";
+  if (name.toLowerCase() === "you") return "You";
+
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0];
+
+  const firstName = parts[0];
+  const lastName = parts[parts.length - 1];
+  return `${firstName} ${lastName.charAt(0).toUpperCase()}.`;
+}
+
+function reportCoordinates(report) {
+  if (!report || typeof report !== "object") return null;
+
+  const candidates = [];
+
+  const addPair = (latValue, lngValue) => {
+    if (latValue == null || lngValue == null || latValue === "" || lngValue === "") return;
+    const latitude = Number(latValue);
+    const longitude = Number(lngValue);
+    if (
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude) &&
+      Math.abs(latitude) <= 90 &&
+      Math.abs(longitude) <= 180 &&
+      !(latitude === 0 && longitude === 0)
+    ) {
+      candidates.push({ latitude, longitude });
+    }
+  };
+
+  addPair(report.latitude, report.longitude ?? report.lng ?? report.lon);
+  addPair(report.lat, report.lng ?? report.longitude ?? report.lon);
+  addPair(report.last_seen_latitude, report.last_seen_longitude);
+  addPair(report.lastSeenLatitude, report.lastSeenLongitude);
+  addPair(report.last_location?.lat, report.last_location?.lng ?? report.last_location?.lon);
+  addPair(report.lastLocation?.lat, report.lastLocation?.lng ?? report.lastLocation?.lon);
+
+  const geoJsonCandidates = [
+    report.last_location,
+    report.lastLocation,
+    report.location,
+    report.last_location_geojson,
+    report.lastLocationGeoJson,
+  ];
+
+  for (const value of geoJsonCandidates) {
+    let parsed = value;
+    if (typeof parsed === "string") {
+      const trimmed = parsed.trim();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        try {
+          parsed = JSON.parse(trimmed);
+        } catch {
+          parsed = value;
+        }
+      }
+    }
+
+    if (Array.isArray(parsed) && parsed.length >= 2) {
+      addPair(parsed[1], parsed[0]);
+    } else if (parsed && Array.isArray(parsed.coordinates)) {
+      addPair(parsed.coordinates[1], parsed.coordinates[0]);
+    }
+
+    if (typeof value === "string") {
+      const pointMatch = value.match(
+        /POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)/i,
+      );
+      if (pointMatch) addPair(pointMatch[2], pointMatch[1]);
+    }
+  }
+
+  return candidates[0] || null;
+}
+
+function mapBackendPet(pet, index = 0) {
+  const backendPetId = Number(pet.pet_id);
+  const status = String(pet.status || "HOME").toUpperCase();
+
+  return {
+    id: `pet-${backendPetId}`,
+    backendPetId,
+    name: pet.name || "Pet",
+    species: pet.species || "Pet",
+    breed: pet.breed || "Unknown breed",
+    color: PET_AVATAR_COLORS[index % PET_AVATAR_COLORS.length],
+    sex: pet.sex
+      ? String(pet.sex).charAt(0).toUpperCase() +
+        String(pet.sex).slice(1).toLowerCase()
+      : "",
+    birthday: pet.birth_date || "",
+    primaryColor: pet.color || "",
+    markings: pet.description || "",
+    photos: pet.photo_url ? [pet.photo_url] : [],
+    microchipNumber: pet.microchip_number || "",
+    backendStatus: status,
+  };
+}
+
+function cleanReunionStory(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  // Normally the textarea already contains only the owner's story.
+  // If UI labels were accidentally pasted into it, keep only the actual
+  // Reunion Story section and remove the sharing-control labels.
+  const storyMatch = text.match(/Reunion Story:\s*([\s\S]*?)(?:\n\s*Share this Reunion Story\?|$)/i);
+  return (storyMatch ? storyMatch[1] : text).trim();
+}
+
+function reunionTimeLabel(value) {
+  if (!value) return "";
+  const created = new Date(value);
+  if (Number.isNaN(created.getTime())) return "";
+
+  const diffMs = Math.max(0, Date.now() - created.getTime());
+  const minutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(diffMs / 3600000);
+  const days = Math.floor(diffMs / 86400000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function mapBackendReunionStory(story) {
+  const method = String(story.reunion_method || "").toUpperCase();
+
+  return {
+    id: `backend-reunion-${story.recognition_id}`,
+    backendRecognitionId: Number(story.recognition_id),
+    petName: story.pet_name || "Pet",
+    ownerName: story.owner_name || "REunited member",
+    heroName:
+      method === "COMMUNITY_HELPED"
+        ? story.hero_name || "REunited member"
+        : null,
+    reunionMethod: method,
+    message: cleanReunionStory(story.reunion_story),
+    photoUrl: story.pet_photo_url || null,
+    photoColor: "#2F6E62",
+    timeLabel: reunionTimeLabel(story.created_at),
+  };
+}
+
+function mapBackendHeroRecognition(item) {
+  return {
+    id: `hero-reunion-${item.recognition_id}`,
+    backendRecognitionId: Number(item.recognition_id),
+    petName: item.pet_name || "Pet",
+    ownerName: item.owner_name || "REunited member",
+    heroName: "You",
+    reunionMethod: String(item.reunion_method || "COMMUNITY_HELPED").toUpperCase(),
+    message: item.thank_you_message?.trim() || "Thank you for helping bring this pet home.",
+    reunionStory: cleanReunionStory(item.reunion_story),
+    photoUrl: item.pet_photo_url || null,
+    photoColor: "#2F6E62",
+    timeLabel: reunionTimeLabel(item.created_at),
+  };
+}
+
 
 function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByThread, onDeleteAccount }) {
   // home | details | review | active | trail | reportSighting | pendingSighting | reunite | reunited
   const [screen, setScreen] = useState("home");
+  const [privacyConsents, setPrivacyConsents] = useState(null);
+  const [showPrivacyConsent, setShowPrivacyConsent] = useState(false);
+  const [pendingLocationAction, setPendingLocationAction] = useState(null);
+  const [showLegalAcceptance, setShowLegalAcceptance] = useState(false);
+  const [legalAcceptanceChecked, setLegalAcceptanceChecked] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState(null);
+  const [selectedReportId, setSelectedReportId] = useState(null);
   const [pin, setPin] = useState(null); // { xPct, yPct }
   const [timeLabel, setTimeLabel] = useState(null);
   const [customTime, setCustomTime] = useState("");
   const [showCustomTime, setShowCustomTime] = useState(false);
-  const [radiusKm, setRadiusKm] = useState(3);
+  const [radiusKm, setRadiusKm] = useState(1);
   const [activeCases, setActiveCases] = useState({}); // petId -> true
   const [caseDates, setCaseDates] = useState({}); // petId -> { lostAt: Date, foundAt: Date | null }
   // Real backend integration for the core flow (case create/activate,
@@ -357,27 +1318,306 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
   // Reunion Stories, and Founding Member rank all stay frontend-only mock,
   // since the backend has no concept of any of those yet.
   const [backendCaseIdByPet, setBackendCaseIdByPet] = useState({});
+  const [nearbyAlerts, setNearbyAlerts] = useState([]);
+const [nearbyLoading, setNearbyLoading] = useState(false);
+const [nearbyError, setNearbyError] = useState(null);
+  const [reportIdByPet, setReportIdByPet] = useState({
+  milo: 5,
+});
   const [apiError, setApiError] = useState(null);
+  const [reuniteSubmitting, setReuniteSubmitting] = useState(false);
+  const [missingSubmitting, setMissingSubmitting] = useState(false);
+  const [missingGps, setMissingGps] = useState(null);
+  const [missingGpsStatus, setMissingGpsStatus] = useState("idle");
   const [reunitedCases, setReunitedCases] = useState({}); // petId -> { heroName, message }
   const [sightingsByPet, setSightingsByPet] = useState(INITIAL_SIGHTINGS);
+  const [potentialMatchesByPet, setPotentialMatchesByPet] = useState({});
+  const [potentialMatchesLoading, setPotentialMatchesLoading] = useState(false);
+  const [potentialMatchSavingId, setPotentialMatchSavingId] = useState(null);
+  const [focusedPotentialSightingId, setFocusedPotentialSightingId] = useState(null);
   const [heroSelection, setHeroSelection] = useState(null);
   const [thankYouMessage, setThankYouMessage] = useState("");
+  const [reunionMethod, setReunionMethod] = useState("SELF_FOUND");
+  const [reunionStory, setReunionStory] = useState("");
   const [posts, setPosts] = useState(INITIAL_POSTS);
-  const [pets, setPets] = useState(PETS_SEED);
+  const [pets, setPets] = useState([]);
+  const [petsLoading, setPetsLoading] = useState(true);
+  const [petsError, setPetsError] = useState(null);
   const [ownerAlert, setOwnerAlert] = useState(null); // { petId, petName, species, distanceLabel, timeLabel } | null
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState(null);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [pushSetupStatus, setPushSetupStatus] = useState(() => {
+    if (typeof Notification === "undefined") return "unsupported";
+    if (Notification.permission === "denied") return "denied";
+    if (
+      Notification.permission === "granted" &&
+      localStorage.getItem("reunited_push_registered") === "true"
+    ) {
+      return "registered";
+    }
+    return "idle";
+  });
+  const [pushSetupError, setPushSetupError] = useState(null);
+  const [messageThreads, setMessageThreads] = useState([]);
+  const [messageThreadsLoading, setMessageThreadsLoading] = useState(false);
+  const [messageThreadsError, setMessageThreadsError] = useState(null);
 
-  // Profile stats. "My Pets" and "My Reports" are computed live from real
-  // app state below. Sightings-submitted starts with some seed history (so
-  // the profile isn't empty on first look) and increments with real
-  // activity. Hero Reunions and thank-you messages are static mock data --
-  // there's no in-app mechanic yet for the current user to actually receive
-  // a Hero Badge or thank-you (only to award one to someone else), since
-  // that would require a second account's perspective.
-  const [sightingsSubmittedCount, setSightingsSubmittedCount] = useState(8);
-  const [heroReunionsCount] = useState(3);
-  const [thankYouMessagesReceived] = useState([
-    { id: "ty1", petName: "Max", message: "Thank you for helping us find Max!" },
-  ]);
+  async function refreshPrivacyConsents() {
+    try {
+      const data = await getMyPrivacyConsents();
+      setPrivacyConsents(data);
+      return data;
+    } catch (error) {
+      console.error("Privacy consent load failed:", error);
+      setApiError(
+        error?.message ||
+          "Unable to check your privacy settings.",
+      );
+      return null;
+    }
+  }
+
+  async function refreshLegalAcceptance() {
+    try {
+      const data = await getMyPrivacyConsents();
+      setPrivacyConsents(data);
+
+      const hasTerms =
+        Boolean(data?.accepted?.terms_of_service);
+      const hasGuidelines =
+        Boolean(data?.accepted?.community_guidelines);
+
+      setShowLegalAcceptance(
+        !(hasTerms && hasGuidelines),
+      );
+      setLegalAcceptanceChecked(true);
+
+      return data;
+    } catch (error) {
+      console.error("Legal acceptance load failed:", error);
+      setApiError(
+        error?.message ||
+          "Unable to check the current REunited agreement.",
+      );
+      setLegalAcceptanceChecked(true);
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    refreshLegalAcceptance();
+  }, []);
+
+  async function ensureLocationConsent(nextAction) {
+    let data = privacyConsents;
+
+    if (!data) {
+      data = await refreshPrivacyConsents();
+    }
+
+    if (!data) {
+      return;
+    }
+
+    const hasPrivacy =
+      Boolean(data?.accepted?.privacy_policy);
+    const hasLocation =
+      Boolean(data?.accepted?.location_data);
+
+    if (hasPrivacy && hasLocation) {
+      await nextAction();
+      return;
+    }
+
+    setPendingLocationAction(() => nextAction);
+    setShowPrivacyConsent(true);
+  }
+
+  // Load the authenticated user's real pets from NestJS.
+  // This replaces PETS_SEED for the My Pets screen.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPetsFromBackend() {
+      setPetsLoading(true);
+      setPetsError(null);
+
+      try {
+        const rows = await getPets();
+
+        if (cancelled) {
+          return;
+        }
+
+        const mappedPets = (Array.isArray(rows) ? rows : []).map(
+          (pet, index) => mapBackendPet(pet, index),
+        );
+
+        let hydratedPets = mappedPets;
+        const nextActiveCases = {};
+        const nextReunitedCases = {};
+        const nextReportIdByPet = {};
+        const nextCaseDates = {};
+
+        // Restore each active report after reload/login so the Active Search
+        // Map keeps its last-seen coordinates and the 1/3/5 km timer keeps
+        // using the backend report's original created_at timestamp.
+        try {
+          const reportsResponse = await getReports();
+          const reportRows = Array.isArray(reportsResponse)
+            ? reportsResponse
+            : Array.isArray(reportsResponse?.reports)
+              ? reportsResponse.reports
+              : [];
+
+          const activeReportByBackendPetId = {};
+
+          reportRows
+            .filter((report) =>
+              ["ACTIVE", "PENDING_REVIEW"].includes(
+                String(report.status || "").toUpperCase(),
+              ),
+            )
+            .sort(
+              (a, b) =>
+                Number(b.report_id || 0) - Number(a.report_id || 0),
+            )
+            .forEach((report) => {
+              const backendPetId = Number(report.pet_id);
+              if (
+                Number.isFinite(backendPetId) &&
+                backendPetId > 0 &&
+                !activeReportByBackendPetId[backendPetId]
+              ) {
+                activeReportByBackendPetId[backendPetId] = report;
+              }
+            });
+
+          // Fetch individual active reports when necessary because the detail
+          // endpoint may expose GPS fields that are not included in the list.
+          const detailedReports = {};
+          await Promise.all(
+            Object.values(activeReportByBackendPetId).map(async (report) => {
+              const reportId = Number(report.report_id);
+              if (!reportId) return;
+
+              try {
+                const detailResponse = await getReport(reportId);
+                detailedReports[reportId] =
+                  detailResponse?.report &&
+                  typeof detailResponse.report === "object"
+                    ? detailResponse.report
+                    : detailResponse;
+              } catch (error) {
+                console.warn(
+                  `Unable to load active report #${reportId} details:`,
+                  error,
+                );
+              }
+            }),
+          );
+
+          hydratedPets = mappedPets.map((pet) => {
+            const summaryReport =
+              activeReportByBackendPetId[Number(pet.backendPetId)];
+
+            if (!summaryReport) return pet;
+
+            const reportId = Number(summaryReport.report_id);
+            const detailedReport = detailedReports[reportId];
+            const report = {
+              ...summaryReport,
+              ...(detailedReport && typeof detailedReport === "object"
+                ? detailedReport
+                : {}),
+            };
+            const coords = reportCoordinates(report);
+
+            nextReportIdByPet[pet.id] = reportId;
+            nextCaseDates[pet.id] = {
+              lostAt: report.last_seen_at
+                ? new Date(report.last_seen_at)
+                : null,
+              activatedAt: report.created_at
+                ? new Date(report.created_at)
+                : new Date(),
+              foundAt: null,
+            };
+
+            return {
+              ...pet,
+              reportId,
+              lastSeenLatitude: coords?.latitude ?? null,
+              lastSeenLongitude: coords?.longitude ?? null,
+              lastLocationText:
+                report.last_location_text ||
+                pet.lastLocationText ||
+                "",
+            };
+          });
+        } catch (error) {
+          console.warn(
+            "Unable to restore active report map data after reload:",
+            error,
+          );
+        }
+
+        hydratedPets.forEach((pet) => {
+          if (pet.backendStatus === "MISSING") {
+            nextActiveCases[pet.id] = true;
+          }
+
+          if (pet.backendStatus === "REUNITED") {
+            nextReunitedCases[pet.id] = {
+              heroName: null,
+              message: "",
+            };
+          }
+        });
+
+        setPets(hydratedPets);
+        setReportIdByPet((prev) => ({
+          ...prev,
+          ...nextReportIdByPet,
+        }));
+        setCaseDates((prev) => ({
+          ...prev,
+          ...nextCaseDates,
+        }));
+        setActiveCases(nextActiveCases);
+        setReunitedCases(nextReunitedCases);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Load pets error:", error);
+          setPets([]);
+          setPetsError(
+            error.message || "Unable to load your pets.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setPetsLoading(false);
+        }
+      }
+    }
+
+    loadPetsFromBackend();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Profile stats are loaded from the backend. Hero recognitions and
+  // thank-you messages come from reunion_recognitions for the signed-in user.
+  const [sightingsSubmittedCount, setSightingsSubmittedCount] = useState(0);
+  const [reportsSubmittedCount, setReportsSubmittedCount] = useState(0);
+  const [heroRecognitions, setHeroRecognitions] = useState([]);
+  const [heroRecognitionsLoading, setHeroRecognitionsLoading] = useState(true);
+  const heroReunionsCount = heroRecognitions.length;
+  const thankYouMessagesReceived = heroRecognitions;
 
   // User profile -- name/contact/address/emergency contact, now collected
   // directly during account creation (see ProfileDetailsStep in Onboarding)
@@ -390,65 +1630,404 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
     address: initialProfile?.address || "",
     emergencyContactName: initialProfile?.emergencyContactName || "",
     emergencyContactPhone: initialProfile?.emergencyContactPhone || "",
+    emailVerified: false,
   }));
 
   const [selectedStoryId, setSelectedStoryId] = useState(null);
   const [storyOrigin, setStoryOrigin] = useState("profile"); // where "back" from a story goes
-  const [reunionStories, setReunionStories] = useState(INITIAL_REUNION_STORIES);
+  const [reunionStories, setReunionStories] = useState([]);
+  const [reunionStoriesLoading, setReunionStoriesLoading] = useState(true);
   const [shareAsStory, setShareAsStory] = useState(false);
   const [foundPetCapture, setFoundPetCapture] = useState(null); // { species, primaryColor, photoColor, locationLabel, captureLat, captureLng, gpsAccuracyMeters }
   const [foundPetsBoard, setFoundPetsBoard] = useState(INITIAL_FOUND_PETS_BOARD);
-  const [messageThreadSubject, setMessageThreadSubject] = useState(null); // { id, title, subtitle, origin }
+  const [messageThreadSubject, setMessageThreadSubject] = useState(null); // { id, title, subtitle, origin, reportId?, otherUserId?, isReal? }
+  const [realThreadMessages, setRealThreadMessages] = useState([]);
+  const [realThreadLoading, setRealThreadLoading] = useState(false);
+  const [realThreadError, setRealThreadError] = useState(null);
+  const [realThreadSending, setRealThreadSending] = useState(false);
   // messagesByThread/setMessagesByThread now come from App as props -- lifted
   // up so the admin-feedback thread survives switching to the Admin view
   // (MainApp fully unmounts on that switch, which would otherwise discard it).
   const [profileOrigin, setProfileOrigin] = useState("home"); // where "back" from the profile screen goes
   const mapRef = useRef(null);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMyProfileFromBackend() {
+      try {
+        const data = await getMyProfile();
+
+        if (!cancelled && data) {
+          const fullName = [
+            data.first_name,
+            data.last_name,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+
+          setUserProfile((current) => ({
+            ...current,
+            fullName,
+            phone: data.phone || "",
+            email: data.email || "",
+            address: data.address || "",
+            emergencyContactName: data.emergency_contact_name || "",
+            emergencyContactPhone: data.emergency_contact_phone || "",
+            emailVerified: Boolean(data.email_verified),
+          }));
+        }
+      } catch (error) {
+        console.error("Unable to load user profile:", error);
+      }
+    }
+
+    loadMyProfileFromBackend();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function saveUserProfile(updated) {
+    const cleanFullName = updated.fullName.trim();
+    const nameParts = cleanFullName.split(/\s+/).filter(Boolean);
+    const firstName = nameParts.shift() || "";
+    const lastName = nameParts.join(" ");
+
+    if (!firstName) {
+      throw new Error("Please enter your name.");
+    }
+
+    const saved = await updateMyProfile({
+      first_name: firstName,
+      last_name: lastName || null,
+      phone: updated.phone.trim() || null,
+      address: updated.address.trim() || null,
+      emergency_contact_name:
+        updated.emergencyContactName.trim() || null,
+      emergency_contact_phone:
+        updated.emergencyContactPhone.trim() || null,
+    });
+
+    const savedFullName = [
+      saved?.first_name,
+      saved?.last_name,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    setUserProfile((current) => ({
+      ...current,
+      ...updated,
+      fullName: savedFullName || cleanFullName,
+      phone: saved?.phone || "",
+      email: saved?.email || current.email,
+      address: saved?.address || "",
+      emergencyContactName: saved?.emergency_contact_name || "",
+      emergencyContactPhone: saved?.emergency_contact_phone || "",
+      emailVerified:
+        saved?.email_verified !== undefined
+          ? Boolean(saved.email_verified)
+          : current.emailVerified,
+    }));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMyReportCount() {
+      try {
+        const data = await getMyReportCount();
+        const count = Number(data?.count ?? 0);
+
+        if (!cancelled) {
+          setReportsSubmittedCount(
+            Number.isFinite(count) ? count : 0,
+          );
+        }
+      } catch (error) {
+        console.error("Unable to load report count:", error);
+        if (!cancelled) setReportsSubmittedCount(0);
+      }
+    }
+
+    loadMyReportCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMySightingCount() {
+      try {
+        const data = await getMySightingCount();
+        const count = Number(data?.count ?? 0);
+
+        if (!cancelled) {
+          setSightingsSubmittedCount(
+            Number.isFinite(count) ? count : 0,
+          );
+        }
+      } catch (error) {
+        console.error("Unable to load sighting count:", error);
+        if (!cancelled) setSightingsSubmittedCount(0);
+      }
+    }
+
+    loadMySightingCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHeroRecognitions() {
+      setHeroRecognitionsLoading(true);
+      try {
+        const data = await getHeroRecognitions();
+        const rows = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.recognitions)
+            ? data.recognitions
+            : [];
+
+        if (!cancelled) {
+          setHeroRecognitions(rows.map(mapBackendHeroRecognition));
+        }
+      } catch (error) {
+        console.error("Unable to load Hero Recognitions:", error);
+        if (!cancelled) setHeroRecognitions([]);
+      } finally {
+        if (!cancelled) setHeroRecognitionsLoading(false);
+      }
+    }
+
+    loadHeroRecognitions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPublicReunionStories() {
+      setReunionStoriesLoading(true);
+      try {
+        const data = await getReunionStories();
+        const rows = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.stories)
+            ? data.stories
+            : [];
+
+        if (!cancelled) {
+          setReunionStories(
+            rows
+              .map(mapBackendReunionStory)
+              .filter((story) => story.message),
+          );
+        }
+      } catch (error) {
+        console.error("Unable to load Reunion Stories:", error);
+        if (!cancelled) setReunionStories([]);
+      } finally {
+        if (!cancelled) setReunionStoriesLoading(false);
+      }
+    }
+
+    loadPublicReunionStories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Tab bar (My Pets / Community) only shows on the two top-level screens;
   // every other screen is a focused flow, same pattern as the rest of the app.
-  const TOP_LEVEL_SCREENS = ["home", "feed", "alerts", "profile"];
+  const TOP_LEVEL_SCREENS = ["home", "feed", "alerts", "notifications", "profile"];
 
   // Community alert "pets" aren't in your own pets list (they belong to
   // other people), but the report-a-sighting flow needs to resolve them the
   // same way, since it reuses the same screens for "your own case" and
   // "helping a neighbor."
-  const selectedPet = [...pets, ...COMMUNITY_ALERTS].find((p) => p.id === selectedPetId) || null;
+const selectedPet = [
+  ...pets,
+  ...nearbyAlerts,
+].find(
+  (pet) =>
+    pet.id === selectedPetId,
+) || null;
   const isOwnPet = selectedPetId ? pets.some((p) => p.id === selectedPetId) : false;
   const activePets = pets.filter((p) => activeCases[p.id] && !reunitedCases[p.id]);
 
   function startReport(petId) {
+    // Critical #7: emergency fast-start. One tap from My Pets opens the
+    // missing-pet flow already set to "Just now" and immediately requests
+    // the device location. The owner still reviews the pin before activation,
+    // which prevents accidental community alerts.
     setSelectedPetId(petId);
     setPin(null);
-    setTimeLabel(null);
+    setTimeLabel("Just now");
     setShowCustomTime(false);
     setCustomTime("");
-    setRadiusKm(3);
+    setRadiusKm(1);
+    setMissingGps(null);
+    setMissingGpsStatus("idle");
+    setApiError(null);
     setScreen("details");
+
+    // Reuse the existing GPS path; if permission is denied/unavailable, the
+    // map remains usable so the owner can manually place the last-seen pin.
+    useCurrentLocation();
   }
 
-  function handleMapClick(e) {
-    const rect = mapRef.current.getBoundingClientRect();
-    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
-    setPin({ xPct, yPct });
+  function handleMapClick(coords) {
+    if (!coords) return;
+
+    const isCurrent = Boolean(coords.isCurrent);
+
+    setPin({
+      lat: Number(coords.lat),
+      lng: Number(coords.lng),
+      isCurrent,
+    });
+
+    // A manually placed or dragged pin is an explicit owner confirmation,
+    // so it is allowed even when the device GPS was weak or unavailable.
+    if (!isCurrent) {
+      setApiError(null);
+      setMissingGpsStatus("manual");
+    }
   }
 
   function useCurrentLocation() {
-    setPin({ xPct: 50, yPct: 50, isCurrent: true });
+    return ensureLocationConsent(async () => {
+      performCurrentLocation();
+    });
+  }
+
+  function performCurrentLocation() {
+    if (!navigator.geolocation) {
+      setMissingGps(null);
+      setMissingGpsStatus("error");
+      setApiError("Location is not supported on this device.");
+      return;
+    }
+
+    setApiError(null);
+    setMissingGpsStatus("locating");
+
+    const acceptPosition = (position) => {
+      const lat = Number(position.coords.latitude);
+      const lng = Number(position.coords.longitude);
+      const accuracy = Number(position.coords.accuracy);
+      const capturedAt = Number(position.timestamp || Date.now());
+      const ageMs = Math.max(0, Date.now() - capturedAt);
+
+      if (
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lng) ||
+        !Number.isFinite(accuracy)
+      ) {
+        setMissingGps(null);
+        setMissingGpsStatus("error");
+        setApiError(
+          "The device returned an invalid location. Please try GPS again or place the pin manually.",
+        );
+        return;
+      }
+
+      // Critical #8: do not silently accept a stale cached device position.
+      if (ageMs > 120000) {
+        setMissingGps(null);
+        setMissingGpsStatus("error");
+        setApiError(
+          "Your device location is stale. Tap Use current location again or place the last-seen pin manually.",
+        );
+        return;
+      }
+
+      setMissingGps({
+        lat,
+        lng,
+        accuracy,
+        capturedAt,
+      });
+
+      // The exact coordinates remain owner-side during this step. Critical #9
+      // handles public GPS privacy; this batch focuses only on reliability.
+      setPin({ lat, lng, isCurrent: true });
+      setMissingGpsStatus(accuracy > 200 ? "weak" : "ready");
+
+      if (accuracy > 200) {
+        setApiError(
+          `GPS accuracy is only about ±${Math.round(
+            accuracy,
+          )} m. Retry GPS or move the pin manually before continuing.`,
+        );
+      } else if (accuracy > 100) {
+        setApiError(
+          `GPS accuracy is about ±${Math.round(
+            accuracy,
+          )} m. Please check the pin carefully before continuing.`,
+        );
+      } else {
+        setApiError(null);
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      acceptPosition,
+      (error) => {
+        console.error("Missing pet location error:", error);
+        setMissingGps(null);
+        setMissingGpsStatus("error");
+
+        const message =
+          error?.code === 1
+            ? "Location permission was denied. Allow location access or place the last-seen pin manually."
+            : error?.code === 2
+              ? "Your device could not determine a reliable location. Retry GPS or place the pin manually."
+              : error?.code === 3
+                ? "Location request timed out. Retry GPS or place the pin manually."
+                : "Unable to get your location. Retry GPS or place the pin manually.";
+
+        setApiError(message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      },
+    );
   }
 
   function rawCoordsForPin(p) {
-    if (!p) return null;
+    if (p?.lat == null || p?.lng == null) return null;
+
     return {
-      lat: 14.676 + (50 - p.yPct) * 0.0006,
-      lng: 121.044 + (p.xPct - 50) * 0.0006,
+      lat: Number(p.lat),
+      lng: Number(p.lng),
     };
   }
 
   function coordsForPin(p) {
     const c = rawCoordsForPin(p);
-    return c ? `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}` : null;
+
+    return c
+      ? `${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`
+      : null;
   }
 
   // Converts a TIME_CHIPS label into an actual Date by subtracting a rough
@@ -460,44 +2039,314 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
   }
 
   async function activateCase() {
-    setActiveCases((prev) => ({ ...prev, [selectedPetId]: true }));
-    const lostAt = showCustomTime && customTime ? new Date(customTime) : dateFromRelativeLabel(timeLabel);
-    setCaseDates((prev) => ({ ...prev, [selectedPetId]: { lostAt, foundAt: null } }));
-    setScreen("active");
+    if (missingSubmitting) {
+      return;
+    }
 
-    // Real backend sync, best-effort: the local UI above already reflects
-    // the activation regardless of whether this succeeds, so a backend
-    // outage doesn't block the owner from using the app -- it just means
-    // sightings for this case won't get real trust-pipeline scoring until
-    // the backend is reachable (see submitSighting).
+    const pet = pets.find(
+      (item) => item.id === selectedPetId,
+    );
+
+    if (!pet?.backendPetId) {
+      setApiError(
+        "This pet is not connected to the backend yet.",
+      );
+      return;
+    }
+
+    const lostAt =
+      showCustomTime && customTime
+        ? new Date(customTime)
+        : dateFromRelativeLabel(timeLabel);
+
+    const fallbackCoords = rawCoordsForPin(pin);
+    const coords =
+      pin?.isCurrent && missingGps
+        ? {
+            lat: missingGps.lat,
+            lng: missingGps.lng,
+          }
+        : fallbackCoords;
+
+    if (!coords) {
+      setApiError(
+        "Please choose the last-seen location.",
+      );
+      return;
+    }
+
+    setMissingSubmitting(true);
+    setApiError(null);
+
     try {
-      const coords = rawCoordsForPin(pin);
-      const created = await apiFetch("/cases", {
-        method: "POST",
-        body: JSON.stringify({ ownerId: "owner-demo", petId: selectedPetId }),
-      });
-      await apiFetch(`/cases/${created.id}/activate`, {
-        method: "POST",
-        body: JSON.stringify({
-          lastKnownLat: coords.lat,
-          lastKnownLng: coords.lng,
-          lastKnownAt: lostAt.toISOString(),
-        }),
-      });
-      setBackendCaseIdByPet((prev) => ({ ...prev, [selectedPetId]: created.id }));
-      setApiError(null);
-    } catch (err) {
-      setApiError(err.message);
+      const created = await reportPetMissing(
+        pet.backendPetId,
+        {
+          last_seen_at: lostAt.toISOString(),
+          last_location_text:
+            pin?.isCurrent
+              ? "Current location"
+              : coordsForPin(pin),
+          latitude: Number(coords.lat),
+          longitude: Number(coords.lng),
+          description:
+            pet.markings ||
+            `${pet.name} was reported missing through REunited.`,
+        },
+      );
+
+      const reportId = Number(created?.report_id ?? created?.report?.report_id);
+
+      if (reportId) {
+        setReportIdByPet((prev) => ({
+          ...prev,
+          [selectedPetId]: reportId,
+        }));
+      }
+
+      setPets((prev) =>
+        prev.map((item) =>
+          item.id === selectedPetId
+            ? {
+                ...item,
+                backendStatus: "MISSING",
+                lastSeenLatitude: Number(coords.lat),
+                lastSeenLongitude: Number(coords.lng),
+                lastLocationText:
+                  pin?.isCurrent ? "Current location" : coordsForPin(pin),
+              }
+            : item,
+        ),
+      );
+
+      // Missing-pet reports activate immediately. No staff approval is required.
+      // Community alert radius expands automatically: 1 km now, 3 km after
+      // 24 hours, and 5 km after 72 hours while the case remains ACTIVE.
+      setCaseDates((prev) => ({
+        ...prev,
+        [selectedPetId]: {
+          lostAt,
+          activatedAt: created?.created_at ? new Date(created.created_at) : new Date(),
+          foundAt: null,
+        },
+      }));
+
+      setScreen("active");
+    } catch (error) {
+      console.error("Report missing error:", error);
+      setApiError(
+        error.message ||
+          "Unable to report this pet missing.",
+      );
+    } finally {
+      setMissingSubmitting(false);
     }
   }
 
-  function openTrail(petId) {
+  async function openActiveSearch(petId, reportIdOverride = null) {
     setSelectedPetId(petId);
+
+    const pet = pets.find((item) => item.id === petId);
+    const reportId =
+      Number(reportIdOverride) ||
+      Number(reportIdByPet[petId]) ||
+      Number(pet?.reportId) ||
+      null;
+
+    if (reportId) {
+      try {
+        const backendSightings = await getSightings(reportId);
+        const rows = Array.isArray(backendSightings)
+          ? backendSightings
+          : Array.isArray(backendSightings?.sightings)
+            ? backendSightings.sightings
+            : [];
+
+        const mappedSightings = rows.map((sighting) => ({
+          id: `backend-sighting-${sighting.sighting_id}`,
+          backendSightingId: Number(sighting.sighting_id),
+          reporterId:
+            sighting.reporter_id != null
+              ? Number(sighting.reporter_id)
+              : null,
+          reporterName:
+            publicDisplayName(
+              sighting.reporter_name ||
+              sighting.reporterName ||
+              "REunited member",
+            ),
+          distanceLabel:
+            sighting.location_text ||
+            sighting.locationText ||
+            "Location reported",
+          timeLabel: relativeTimeLabel(
+            sighting.sighted_at || sighting.created_at,
+          ),
+          confidence:
+            String(sighting.status || "").toUpperCase() === "VERIFIED"
+              ? "HIGH"
+              : String(sighting.status || "").toUpperCase() === "REJECTED"
+                ? "REJECTED"
+                : "PENDING",
+          ownerVerdict:
+            String(sighting.status || "").toUpperCase() === "VERIFIED"
+              ? "LIKELY_MATCH"
+              : String(sighting.status || "").toUpperCase() === "REJECTED"
+                ? "NOT_MY_PET"
+                : null,
+          signals: [
+            sighting.direction
+              ? `Direction: ${sighting.direction}`
+              : null,
+            sighting.description || null,
+          ].filter(Boolean),
+          photos: [],
+          photoColor: "#2F6E62",
+          comment: sighting.description || "",
+          captureLat:
+            sighting.capture_lat ??
+            sighting.captureLat ??
+            sighting.latitude ??
+            sighting.lat ??
+            null,
+          captureLng:
+            sighting.capture_lng ??
+            sighting.captureLng ??
+            sighting.longitude ??
+            sighting.lng ??
+            null,
+          isBackendSighting: true,
+        }));
+
+        setSightingsByPet((prev) => ({
+          ...prev,
+          [petId]: mappedSightings,
+        }));
+      } catch (error) {
+        console.error(
+          `Unable to load sightings for active report #${reportId}:`,
+          error,
+        );
+      }
+    }
+
+    if (reportId) {
+      try {
+        setPotentialMatchesLoading(true);
+
+        const matchRows = await getPotentialSightingMatches(reportId);
+        const rows = Array.isArray(matchRows)
+          ? matchRows
+          : Array.isArray(matchRows?.matches)
+            ? matchRows.matches
+            : [];
+
+        const mappedMatches = await Promise.all(
+          rows.map(async (match) => {
+            let photos = [];
+
+            try {
+              const photoRows = await getSightingPhotos(
+                reportId,
+                Number(match.sighting_id),
+              );
+              photos = (Array.isArray(photoRows) ? photoRows : [])
+                .map(
+                  (photo) =>
+                    photo.photo_url ||
+                    photo.url ||
+                    photo.secure_url ||
+                    null,
+                )
+                .filter(Boolean);
+            } catch (photoError) {
+              // A potential sighting may have been originally submitted for
+              // another report, so photo access can be unavailable here.
+              // The owner can still review the GPS/details safely.
+              console.warn(
+                `Unable to load potential-match photos for sighting #${match.sighting_id}:`,
+                photoError,
+              );
+            }
+
+            return {
+              matchId: Number(match.match_id),
+              sightingId: Number(match.sighting_id),
+              reportId: Number(match.report_id),
+              originalReportId: Number(match.original_report_id),
+              status: String(match.match_status || "PENDING").toUpperCase(),
+              distanceMeters:
+                match.distance_meters != null
+                  ? Number(match.distance_meters)
+                  : null,
+              reason: match.match_reason || "",
+              reporterName: publicDisplayName(
+                match.reporter_name || "REunited member",
+              ),
+              sightedAt: match.sighted_at || match.match_created_at || null,
+              timeLabel: relativeTimeLabel(
+                match.sighted_at || match.match_created_at,
+              ),
+              locationText: match.location_text || "Location reported",
+              direction: match.direction || "",
+              description: match.description || "",
+              latitude:
+                match.latitude != null ? Number(match.latitude) : null,
+              longitude:
+                match.longitude != null ? Number(match.longitude) : null,
+              originallyReportedPet:
+                match.originally_reported_pet || "another missing pet",
+              photos,
+            };
+          }),
+        );
+
+        setPotentialMatchesByPet((prev) => ({
+          ...prev,
+          [petId]: mappedMatches,
+        }));
+      } catch (error) {
+        console.error(
+          `Unable to load potential matches for report #${reportId}:`,
+          error,
+        );
+        setPotentialMatchesByPet((prev) => ({
+          ...prev,
+          [petId]: [],
+        }));
+      } finally {
+        setPotentialMatchesLoading(false);
+      }
+    } else {
+      setPotentialMatchesByPet((prev) => ({
+        ...prev,
+        [petId]: [],
+      }));
+    }
+
+    setScreen("active");
+  }
+
+  async function openTrail(petId) {
+    // Critical #11B: load the latest backend sightings before opening the
+    // owner's Sighting Trail. openActiveSearch already resolves the active
+    // report, fetches the authenticated sightings, applies GPS privacy, and
+    // refreshes potential matches. After it finishes, switch directly to
+    // the trail view instead of leaving the owner on the map.
+    await openActiveSearch(petId);
     setScreen("trail");
   }
 
   function openReportSighting(petId) {
+    const pet = [...pets, ...nearbyAlerts].find((item) => item.id === petId);
+    const idFromPet = Number(pet?.reportId);
+    const idFromBackendKey = String(pet?.id || "").startsWith("backend-report-")
+      ? Number(String(pet.id).replace("backend-report-", ""))
+      : 0;
+    const idFromOwnPetMap = Number(reportIdByPet[petId]);
+
     setSelectedPetId(petId);
+    setSelectedReportId(idFromPet || idFromBackendKey || idFromOwnPetMap || null);
     setScreen("reportSighting");
   }
 
@@ -656,49 +2505,356 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
     }
   }
 
+  async function verifySightingForOwner(petId, sightingId, verdict) {
+    const sighting = (sightingsByPet[petId] || []).find(
+      (item) => item.id === sightingId,
+    );
+
+    const reportId =
+      Number(reportIdByPet[petId]) ||
+      Number(pets.find((item) => item.id === petId)?.reportId) ||
+      Number(selectedReportId) ||
+      null;
+
+    const backendSightingId = Number(sighting?.backendSightingId);
+
+    if (!reportId || !backendSightingId) {
+      setApiError(
+        "This sighting is not linked to a backend report yet, so it cannot be verified.",
+      );
+      return;
+    }
+
+    const backendStatus =
+      verdict === "LIKELY_MATCH" ? "VERIFIED" : "REJECTED";
+
+    try {
+      setApiError("");
+
+      const updated = await updateSightingOwnerStatus(
+        reportId,
+        backendSightingId,
+        backendStatus,
+      );
+
+      const savedStatus = String(
+        updated?.status || backendStatus,
+      ).toUpperCase();
+
+      setSightingsByPet((prev) => ({
+        ...prev,
+        [petId]: (prev[petId] || []).map((item) => {
+          if (item.id !== sightingId) return item;
+
+          if (savedStatus === "VERIFIED") {
+            return {
+              ...item,
+              ownerVerdict: "LIKELY_MATCH",
+              confidence: "HIGH",
+            };
+          }
+
+          return {
+            ...item,
+            ownerVerdict: "NOT_MY_PET",
+            confidence: "REJECTED",
+          };
+        }),
+      }));
+    } catch (error) {
+      console.error("Owner sighting verification failed:", error);
+      setApiError(
+        error?.message || "Unable to save this sighting verification.",
+      );
+    }
+  }
+
+
+  async function reportSightingForAbuse(
+    petId,
+    sightingId,
+    reason,
+    details,
+  ) {
+    const pet = pets.find((item) => item.id === petId);
+    const reportId =
+      Number(reportIdByPet[petId]) ||
+      Number(pet?.reportId) ||
+      Number(selectedReportId) ||
+      null;
+
+    const sighting = (sightingsByPet[petId] || []).find(
+      (item) => item.id === sightingId,
+    );
+    const backendSightingId = Number(sighting?.backendSightingId);
+
+    if (!reportId || !backendSightingId) {
+      throw new Error(
+        "This sighting is not linked to the active backend report, so it cannot be reported for review.",
+      );
+    }
+
+    const result = await reportSightingAbuseToBackend(
+      reportId,
+      backendSightingId,
+      reason,
+      details,
+    );
+
+    return result;
+  }
+
+
+  async function reviewPotentialSightingMatch(
+    petId,
+    sightingId,
+    verdict,
+  ) {
+    const pet = pets.find((item) => item.id === petId);
+    const reportId =
+      Number(reportIdByPet[petId]) ||
+      Number(pet?.reportId) ||
+      null;
+
+    if (!reportId || !sightingId) {
+      setApiError("This potential sighting match is not linked correctly.");
+      return;
+    }
+
+    const status =
+      verdict === "LIKELY_MATCH" ? "VERIFIED" : "REJECTED";
+
+    try {
+      setPotentialMatchSavingId(Number(sightingId));
+      setApiError(null);
+
+      const updated = await updatePotentialSightingMatchStatus(
+        reportId,
+        Number(sightingId),
+        status,
+      );
+
+      const savedStatus = String(
+        updated?.status || status,
+      ).toUpperCase();
+
+      setPotentialMatchesByPet((prev) => ({
+        ...prev,
+        [petId]: (prev[petId] || []).map((match) =>
+          Number(match.sightingId) === Number(sightingId)
+            ? {
+                ...match,
+                status: savedStatus,
+                reviewedAt: updated?.reviewed_at || new Date().toISOString(),
+              }
+            : match,
+        ),
+      }));
+    } catch (error) {
+      console.error("Potential sighting review failed:", error);
+      setApiError(
+        error?.message || "Unable to save your potential-match review.",
+      );
+    } finally {
+      setPotentialMatchSavingId(null);
+    }
+  }
+
+
   function openReunite(petId) {
     setSelectedPetId(petId);
+    // Never carry a report ID from a previously viewed pet into this reunion.
+    setSelectedReportId(null);
     setHeroSelection(null);
     setThankYouMessage("");
+    setReunionMethod("SELF_FOUND");
+    setReunionStory("");
     setShareAsStory(false);
     setScreen("reunite");
   }
 
-  function confirmReunite() {
-    const hero = (sightingsByPet[selectedPetId] || []).find((s) => s.id === heroSelection);
-    setReunitedCases((prev) => ({
-      ...prev,
-      [selectedPetId]: { heroName: hero ? hero.reporterName : null, message: thankYouMessage },
-    }));
+  async function confirmReunite() {
+    const pet = pets.find((p) => p.id === selectedPetId);
 
-    const foundAt = new Date();
-    const existingDates = caseDates[selectedPetId];
-    setCaseDates((prev) => ({
-      ...prev,
-      [selectedPetId]: { lostAt: existingDates?.lostAt || foundAt, foundAt },
-    }));
-
-    // Opt-in public sharing: only when the owner explicitly chose "Share
-    // Publicly" (not the default) AND there's a hero + message worth
-    // sharing -- an empty or private thank-you never becomes a public story.
-    if (shareAsStory && hero && thankYouMessage.trim()) {
-      const pet = pets.find((p) => p.id === selectedPetId);
-      setReunionStories((prev) => [
-        {
-          id: `rs-${Date.now()}`,
-          petName: pet?.name,
-          ownerName: "You",
-          heroName: hero.reporterName,
-          message: thankYouMessage.trim(),
-          photoColor: pet?.color || "#E2572B",
-          timeLabel: "just now",
-          lostDateLabel: existingDates?.lostAt ? formatDateLabel(existingDates.lostAt) : null,
-          foundDateLabel: formatDateLabel(foundAt),
-        },
-        ...prev,
-      ]);
+    if (!pet) {
+      setApiError("Pet not found.");
+      return;
     }
-    setScreen("reunited");
+
+    if (!pet.backendPetId) {
+      setApiError(`${pet.name} is not linked to a backend pet record yet.`);
+      return;
+    }
+
+    // Resolve the report for THIS pet only. Do not trust a globally selected
+    // report ID because that may belong to a previously viewed pet.
+    let reportId =
+      Number(reportIdByPet[selectedPetId]) ||
+      Number(pet.reportId) ||
+      null;
+
+    try {
+      const reportsResponse = await getReports();
+      const reportRows = Array.isArray(reportsResponse)
+        ? reportsResponse
+        : Array.isArray(reportsResponse?.reports)
+          ? reportsResponse.reports
+          : [];
+
+      const matchingReports = reportRows
+        .filter(
+          (report) =>
+            Number(report.pet_id) === Number(pet.backendPetId),
+        )
+        .sort(
+          (a, b) =>
+            Number(b.report_id || 0) - Number(a.report_id || 0),
+        );
+
+      // For a currently MISSING pet, always prefer the newest open report.
+      // FOUND is only a recovery option for an already-REUNITED pet.
+      const openReport = matchingReports.find((report) =>
+        ["ACTIVE", "PENDING_REVIEW"].includes(
+          String(report.status || "").toUpperCase(),
+        ),
+      );
+
+      const legacyFoundReport =
+        pet.backendStatus === "REUNITED"
+          ? matchingReports.find(
+              (report) =>
+                String(report.status || "").toUpperCase() === "FOUND",
+            )
+          : null;
+
+      const preferredReport =
+        openReport || legacyFoundReport || matchingReports[0];
+
+      if (preferredReport?.report_id) {
+        reportId = Number(preferredReport.report_id);
+        setSelectedReportId(reportId);
+        setReportIdByPet((prev) => ({
+          ...prev,
+          [selectedPetId]: reportId,
+        }));
+      }
+    } catch (error) {
+      console.error("Unable to resolve missing report:", error);
+    }
+
+    if (!reportId) {
+      setApiError(`Unable to find ${pet.name}'s missing report.`);
+      return;
+    }
+
+    const hero = (sightingsByPet[selectedPetId] || []).find(
+      (s) => s.id === heroSelection,
+    );
+
+    if (reunionMethod === "COMMUNITY_HELPED" && !hero) {
+      setApiError("Please select the REunited member whose sighting helped bring your pet home.");
+      return;
+    }
+
+    const backendSightingId = hero
+      ? Number(hero.backendSightingId || String(hero.id).replace("backend-sighting-", ""))
+      : null;
+
+    if (reunionMethod === "COMMUNITY_HELPED" && !backendSightingId) {
+      setApiError("The selected Hero is not linked to a backend sighting.");
+      return;
+    }
+
+    const cleanedReunionStory = cleanReunionStory(reunionStory);
+
+    if (shareAsStory && !cleanedReunionStory) {
+      setApiError("Please write your reunion story before sharing it publicly.");
+      return;
+    }
+
+    setApiError(null);
+    setReuniteSubmitting(true);
+
+    try {
+      // One atomic backend request now marks the pet REUNITED,
+      // marks the report FOUND, and saves the reunion/story/hero.
+      const reunion = await createReunion({
+        report_id: reportId,
+        reunion_method: reunionMethod,
+        ...(reunionMethod === "COMMUNITY_HELPED"
+          ? { sighting_id: backendSightingId }
+          : {}),
+        ...(thankYouMessage.trim()
+          ? { thank_you_message: thankYouMessage.trim() }
+          : {}),
+        ...(cleanedReunionStory
+          ? { reunion_story: cleanedReunionStory }
+          : {}),
+        share_publicly: Boolean(shareAsStory),
+      });
+
+      setPets((prev) =>
+        prev.map((item) =>
+          item.id === selectedPetId
+            ? { ...item, backendStatus: "REUNITED" }
+            : item,
+        ),
+      );
+
+      setReunitedCases((prev) => ({
+        ...prev,
+        [selectedPetId]: {
+          heroName: reunion?.hero_name || hero?.reporterName || null,
+          message: reunion?.thank_you_message || thankYouMessage.trim(),
+          story: reunion?.reunion_story || cleanedReunionStory,
+          method: reunion?.reunion_method || reunionMethod,
+        },
+      }));
+
+      setActiveCases((prev) => ({ ...prev, [selectedPetId]: false }));
+      setNearbyAlerts((prev) =>
+        prev.filter(
+          (alert) => Number(alert.petId) !== Number(pet.backendPetId),
+        ),
+      );
+
+      const foundAt = new Date();
+      const existingDates = caseDates[selectedPetId];
+      setCaseDates((prev) => ({
+        ...prev,
+        [selectedPetId]: {
+          lostAt: existingDates?.lostAt || foundAt,
+          activatedAt: existingDates?.activatedAt || existingDates?.lostAt || foundAt,
+          foundAt,
+        },
+      }));
+
+      if (shareAsStory && reunionStory.trim()) {
+        setReunionStories((prev) => [
+          {
+            id: `reunion-${reunion?.recognition_id || Date.now()}`,
+            petName: pet.name,
+            ownerName: "You",
+            heroName: reunion?.hero_name || hero?.reporterName || null,
+            message: reunionStory.trim(),
+            photoColor: pet.color || "#E2572B",
+            timeLabel: "just now",
+            lostDateLabel: existingDates?.lostAt
+              ? formatDateLabel(existingDates.lostAt)
+              : null,
+            foundDateLabel: formatDateLabel(foundAt),
+          },
+          ...prev,
+        ]);
+      }
+
+      setScreen("reunited");
+    } catch (error) {
+      console.error("Unable to complete reunion:", error);
+      setApiError(error.message || "Unable to complete the reunion.");
+    } finally {
+      setReuniteSubmitting(false);
+    }
   }
 
   function addPost(newPost) {
@@ -710,18 +2866,147 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
     setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + 1 } : p)));
   }
 
-  function addPet(newPet) {
-    setPets((prev) => [...prev, newPet]);
+  async function addPet(newPet) {
+    const saved = await createPet({
+      name: newPet.name,
+      species: String(newPet.species || "").toUpperCase(),
+      breed: newPet.breed || undefined,
+      sex: newPet.sex
+        ? String(newPet.sex).toUpperCase()
+        : undefined,
+      color: newPet.primaryColor || undefined,
+      description: newPet.markings || undefined,
+      birth_date: newPet.birthday || undefined,
+      microchip_number:
+        newPet.microchipped && newPet.microchipNumber
+          ? newPet.microchipNumber
+          : undefined,
+    });
+
+    const mappedPet = mapBackendPet(
+      saved,
+      pets.length,
+    );
+
+    setPets((prev) => [mappedPet, ...prev]);
     setScreen("home");
+
+    return mappedPet;
   }
 
   // Generic message thread -- works for a sighting reporter (from a Trail)
   // or a Found Pets Board finder (from Alerts), since both are just "a
   // person you might need to coordinate with," not something tied to a
   // specific pet's case data.
-  function openMessageThread(subject) {
+  // Refresh an open real private-message conversation every 5 seconds.
+  // This gives the chat a live feel without requiring WebSockets yet.
+  useEffect(() => {
+    if (
+      screen !== "messageThread" ||
+      !messageThreadSubject?.isReal ||
+      !messageThreadSubject?.reportId ||
+      !messageThreadSubject?.otherUserId
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshOpenMessageThread() {
+      try {
+        const rows = await getMessageThread(
+          messageThreadSubject.reportId,
+          messageThreadSubject.otherUserId,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setRealThreadMessages(
+          (Array.isArray(rows) ? rows : []).map((message) => ({
+            id: Number(message.message_id),
+            sender:
+              Number(message.sender_id) ===
+              Number(messageThreadSubject.otherUserId)
+                ? "them"
+                : "you",
+            text: message.message_text,
+            timeLabel: relativeTimeLabel(message.created_at),
+          })),
+        );
+
+        // Reading an open thread can change its unread count, so also
+        // refresh Inbox previews/badges after the thread fetch.
+        try {
+          const threads = await getMessageThreads();
+
+          if (!cancelled) {
+            setMessageThreads(Array.isArray(threads) ? threads : []);
+          }
+        } catch (error) {
+          console.error("Live message badge refresh error:", error);
+        }
+      } catch (error) {
+        // Do not replace the current conversation with an error during
+        // background polling. The initial open still shows normal errors.
+        console.error("Live message thread refresh error:", error);
+      }
+    }
+
+    const intervalId = window.setInterval(
+      refreshOpenMessageThread,
+      5000,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [
+    screen,
+    messageThreadSubject?.isReal,
+    messageThreadSubject?.reportId,
+    messageThreadSubject?.otherUserId,
+  ]);
+
+  async function openMessageThread(subject) {
     setMessageThreadSubject(subject);
     setScreen("messageThread");
+
+    if (!subject.isReal) {
+      return;
+    }
+
+    setRealThreadLoading(true);
+    setRealThreadError(null);
+    setRealThreadMessages([]);
+
+    try {
+      const rows = await getMessageThread(
+        subject.reportId,
+        subject.otherUserId,
+      );
+
+      setRealThreadMessages(
+        (Array.isArray(rows) ? rows : []).map((message) => ({
+          id: Number(message.message_id),
+          sender:
+            Number(message.sender_id) === Number(subject.otherUserId)
+              ? "them"
+              : "you",
+          text: message.message_text,
+          timeLabel: relativeTimeLabel(message.created_at),
+        })),
+      );
+    } catch (error) {
+      console.error("Load message thread error:", error);
+      setRealThreadError(
+        error.message || "Unable to load this conversation.",
+      );
+    } finally {
+      setRealThreadLoading(false);
+    }
   }
 
   function openPetProfile(petId, origin) {
@@ -730,19 +3015,51 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
     setScreen("petProfile");
   }
 
-  function sendMessage(threadId, text) {
+  async function sendMessage(threadId, text) {
+    const subject = messageThreadSubject;
+
+    if (subject?.isReal) {
+      setRealThreadSending(true);
+      setRealThreadError(null);
+
+      try {
+        const saved = await sendPrivateMessage(
+          subject.reportId,
+          subject.otherUserId,
+          text,
+        );
+
+        setRealThreadMessages((prev) => [
+          ...prev,
+          {
+            id: Number(saved.message_id),
+            sender: "you",
+            text: saved.message_text,
+            timeLabel: relativeTimeLabel(saved.created_at),
+          },
+        ]);
+      } catch (error) {
+        console.error("Send private message error:", error);
+        setRealThreadError(
+          error.message || "Unable to send your message.",
+        );
+        throw error;
+      } finally {
+        setRealThreadSending(false);
+      }
+
+      return;
+    }
+
+    // Existing demo/admin messaging stays unchanged for non-backend threads.
     const outgoing = { sender: "you", text, timeLabel: "just now" };
     setMessagesByThread((prev) => ({
       ...prev,
       [threadId]: [...(prev[threadId] || []), outgoing],
     }));
-    // Simulated reply for sighting/found-pet threads only, since there's no
-    // real other person on the other end of those in this demo. The
-    // admin-feedback thread does NOT get an auto-reply -- Amari (the admin)
-    // now sends real replies from the Admin dashboard instead, so an instant
-    // canned response would be misleading and would clash with a genuine
-    // reply arriving later.
+
     if (threadId === ADMIN_FEEDBACK_THREAD_ID) return;
+
     setTimeout(() => {
       const reply = {
         sender: "them",
@@ -756,8 +3073,595 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
     }, 1100);
   }
 
-  const canContinueDetails = pin && (timeLabel || (showCustomTime && customTime));
+  async function reportCurrentMessageUser() {
+    const subject = messageThreadSubject;
+
+    if (!subject?.isReal || !subject.otherUserId) {
+      return;
+    }
+
+    const reason = window.prompt(
+      "Report reason: HARASSMENT, SPAM, SCAM, FALSE_SIGHTING, INAPPROPRIATE_CONTENT, or OTHER",
+      "OTHER",
+    );
+
+    if (!reason) {
+      return;
+    }
+
+    const details = window.prompt(
+      "Briefly describe what happened (optional, up to 1000 characters):",
+      "",
+    );
+
+    try {
+      await reportUser(subject.otherUserId, {
+        reason,
+        details: details || null,
+        reportId: subject.reportId || null,
+      });
+
+      alert("Report submitted. Thank you for helping keep REunited safe.");
+    } catch (error) {
+      alert(error.message || "Unable to submit this report.");
+    }
+  }
+
+  async function blockCurrentMessageUser() {
+    const subject = messageThreadSubject;
+
+    if (!subject?.isReal || !subject.otherUserId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Block ${subject.title || "this user"}? You will no longer be able to message each other or submit new sightings on each other's missing-pet cases.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await blockUser(subject.otherUserId);
+      setRealThreadMessages([]);
+      setScreen(subject.origin || "notifications");
+      setMessageThreadSubject(null);
+      await loadMessageThreads();
+      alert("User blocked.");
+    } catch (error) {
+      alert(error.message || "Unable to block this user.");
+    }
+  }
+
+  const gpsPinReliable =
+    !pin?.isCurrent ||
+    !missingGps ||
+    Number(missingGps.accuracy ?? Infinity) <= 200;
+
+  const canContinueDetails =
+    Boolean(pin) &&
+    gpsPinReliable &&
+    Boolean(timeLabel || (showCustomTime && customTime));
   const showTabBar = TOP_LEVEL_SCREENS.includes(screen);
+
+  async function loadMessageThreads() {
+    setMessageThreadsLoading(true);
+    setMessageThreadsError(null);
+
+    try {
+      const rows = await getMessageThreads();
+      setMessageThreads(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      console.error("Message threads error:", error);
+      setMessageThreadsError(
+        error.message || "Unable to load your messages.",
+      );
+    } finally {
+      setMessageThreadsLoading(false);
+    }
+  }
+
+  function openInboxMessageThread(thread) {
+    const reportId = Number(thread.report_id);
+    const otherUserId = Number(thread.other_user_id);
+
+    openMessageThread({
+      id: `message-${reportId}-${otherUserId}`,
+      title: thread.other_user_name || "REunited member",
+      subtitle: thread.report_name
+        ? `About ${thread.report_name}`
+        : `Report #${reportId}`,
+      origin: "notifications",
+      reportId,
+      otherUserId,
+      isReal: true,
+    });
+  }
+
+  async function loadNotificationUnreadCount() {
+    try {
+      const result = await getNotificationUnreadCount();
+      setNotificationUnreadCount(Number(result?.count || 0));
+    } catch (error) {
+      console.error("Notification unread count error:", error);
+    }
+  }
+
+  async function enablePushNotifications() {
+    setPushSetupStatus("registering");
+    setPushSetupError(null);
+
+    try {
+      await registerBrowserPushDevice();
+      setPushSetupStatus("registered");
+    } catch (error) {
+      console.error("Push registration error:", error);
+      setPushSetupError(
+        error?.message || "Unable to enable push notifications.",
+      );
+
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "denied"
+      ) {
+        setPushSetupStatus("denied");
+      } else {
+        setPushSetupStatus("error");
+      }
+    }
+  }
+
+  async function loadNotifications() {
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+
+    try {
+      const rows = await getNotifications();
+      setNotifications(Array.isArray(rows) ? rows : []);
+      await loadNotificationUnreadCount();
+    } catch (error) {
+      console.error("Notifications error:", error);
+      setNotificationsError(
+        error.message || "Unable to load notifications.",
+      );
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
+  async function openNotification(notification) {
+    try {
+      if (!notification.is_read) {
+        await markNotificationAsRead(notification.notification_id);
+        setNotifications((prev) =>
+          prev.map((item) =>
+            Number(item.notification_id) === Number(notification.notification_id)
+              ? { ...item, is_read: true }
+              : item,
+          ),
+        );
+        setNotificationUnreadCount((count) => Math.max(0, count - 1));
+      }
+
+      // NEW_SIGHTING notifications carry the real backend report + sighting IDs.
+      // Resolve that report back to the owner's local pet, load the report's
+      // real sightings, then open that pet's trail.
+      if (
+        notification.notification_type === "NEW_SIGHTING" &&
+        notification.report_id != null
+      ) {
+        const reportId = Number(notification.report_id);
+
+        // First try the in-memory report -> pet mapping. This may be empty
+        // after login/reload, so NEW_SIGHTING must not depend on it.
+        let petEntry = Object.entries(reportIdByPet).find(
+          ([, mappedReportId]) => Number(mappedReportId) === reportId,
+        );
+
+        let petId = petEntry?.[0] || null;
+
+        if (!petId) {
+          // Recover the relationship from the authoritative backend report.
+          // For Coco report #6 this returns pet_id 4, which maps to pet-4.
+          const reportResponse = await getReport(reportId);
+          const report =
+            reportResponse?.report && typeof reportResponse.report === "object"
+              ? reportResponse.report
+              : reportResponse;
+
+          const backendPetId = Number(
+            report?.pet_id ??
+            report?.petId ??
+            report?.pet?.pet_id ??
+            report?.pet?.petId,
+          );
+
+          if (!Number.isFinite(backendPetId) || backendPetId <= 0) {
+            throw new Error(
+              `Report #${reportId} is not linked to a pet record.`,
+            );
+          }
+
+          // Prefer the owner's already-loaded pet object.
+          let ownerPet = pets.find(
+            (pet) => Number(pet.backendPetId) === backendPetId,
+          );
+
+          // If the notification was opened before the owner's pets finished
+          // loading, fetch them now and recover the pet locally.
+          if (!ownerPet) {
+            const freshPetRows = await getPets();
+            const freshPets = (Array.isArray(freshPetRows) ? freshPetRows : [])
+              .map((pet, index) => mapBackendPet(pet, index));
+
+            setPets(freshPets);
+
+            ownerPet = freshPets.find(
+              (pet) => Number(pet.backendPetId) === backendPetId,
+            );
+          }
+
+          if (!ownerPet) {
+            throw new Error(
+              `Report #${reportId} is linked to pet #${backendPetId}, but that pet is not in this account.`,
+            );
+          }
+
+          petId = ownerPet.id;
+
+          // Cache the recovered mapping so later taps do not need another
+          // report lookup.
+          setReportIdByPet((prev) => ({
+            ...prev,
+            [petId]: reportId,
+          }));
+        }
+
+        setSelectedReportId(reportId);
+        const backendSightings = await getSightings(reportId);
+        const rows = Array.isArray(backendSightings) ? backendSightings : [];
+
+        const mappedSightings = await Promise.all(
+          rows.map(async (sighting) => {
+            let photos = [];
+
+            try {
+              const photoRows = await getSightingPhotos(
+                reportId,
+                sighting.sighting_id,
+              );
+
+              photos = (Array.isArray(photoRows) ? photoRows : [])
+                .map((photo) => photo.file_url)
+                .filter(Boolean);
+            } catch (photoError) {
+              console.error(
+                `Unable to load photos for sighting ${sighting.sighting_id}:`,
+                photoError,
+              );
+            }
+
+            return {
+              id: `backend-sighting-${sighting.sighting_id}`,
+              backendSightingId: Number(sighting.sighting_id),
+              reporterId: Number(sighting.reporter_id),
+              reporterName: publicDisplayName(sighting.reporter_name || "REunited member"),
+              distanceLabel: sighting.location_text || "Location reported",
+              timeLabel: relativeTimeLabel(
+                sighting.sighted_at || sighting.created_at,
+              ),
+              confidence:
+                String(sighting.status || "").toUpperCase() === "VERIFIED"
+                  ? "HIGH"
+                  : String(sighting.status || "").toUpperCase() === "REJECTED"
+                    ? "REJECTED"
+                    : "PENDING",
+              ownerVerdict:
+                String(sighting.status || "").toUpperCase() === "VERIFIED"
+                  ? "LIKELY_MATCH"
+                  : String(sighting.status || "").toUpperCase() === "REJECTED"
+                    ? "NOT_MY_PET"
+                    : null,
+              signals: [
+                sighting.direction
+                  ? `Direction: ${sighting.direction}`
+                  : null,
+                sighting.description || null,
+              ].filter(Boolean),
+              photos,
+              photoColor: photos[0] || "#2F6E62",
+              comment: sighting.description || "",
+              captureLat:
+                sighting.capture_lat ??
+                sighting.captureLat ??
+                sighting.latitude ??
+                sighting.lat ??
+                null,
+              captureLng:
+                sighting.capture_lng ??
+                sighting.captureLng ??
+                sighting.longitude ??
+                sighting.lng ??
+                null,
+              isBackendSighting: true,
+              isNotificationTarget:
+                Number(sighting.sighting_id) ===
+                Number(notification.sighting_id),
+            };
+          }),
+        );
+
+        setSightingsByPet((prev) => ({
+          ...prev,
+          [petId]: mappedSightings,
+        }));
+
+        setSelectedPetId(petId);
+        setScreen("trail");
+        return;
+      }
+
+      // SYSTEM notifications created by the potential-match workflow carry
+      // both the target missing-pet report and the exact sighting to review.
+      if (
+        notification.notification_type === "SYSTEM" &&
+        notification.report_id != null &&
+        notification.sighting_id != null
+      ) {
+        const reportId = Number(notification.report_id);
+        const sightingId = Number(notification.sighting_id);
+
+        const reportResponse = await getReport(reportId);
+        const report =
+          reportResponse?.report && typeof reportResponse.report === "object"
+            ? reportResponse.report
+            : reportResponse;
+
+        const backendPetId = Number(
+          report?.pet_id ??
+          report?.petId ??
+          report?.pet?.pet_id ??
+          report?.pet?.petId,
+        );
+
+        if (!Number.isFinite(backendPetId) || backendPetId <= 0) {
+          throw new Error(`Report #${reportId} is not linked to a pet record.`);
+        }
+
+        let ownerPet = pets.find(
+          (pet) => Number(pet.backendPetId) === backendPetId,
+        );
+
+        if (!ownerPet) {
+          const freshPetRows = await getPets();
+          const freshPets = (Array.isArray(freshPetRows) ? freshPetRows : [])
+            .map((pet, index) => mapBackendPet(pet, index));
+
+          setPets(freshPets);
+          ownerPet = freshPets.find(
+            (pet) => Number(pet.backendPetId) === backendPetId,
+          );
+        }
+
+        if (!ownerPet) {
+          throw new Error(
+            `Report #${reportId} is linked to pet #${backendPetId}, but that pet is not in this account.`,
+          );
+        }
+
+        setReportIdByPet((prev) => ({
+          ...prev,
+          [ownerPet.id]: reportId,
+        }));
+        setSelectedReportId(reportId);
+
+        // openActiveSearch loads both normal sightings and cross-pet
+        // potential matches. The focus id is applied after that load so the
+        // exact card can be highlighted and scrolled into view.
+        await openActiveSearch(ownerPet.id, reportId);
+        setFocusedPotentialSightingId(sightingId);
+        return;
+      }
+
+      // REPORT_APPROVED is a nearby-community alert. Load the real report,
+      // add it to the same community-case state used by Nearby Alerts, then
+      // open the missing pet profile so the member can report a sighting.
+      if (
+        notification.notification_type === "REPORT_APPROVED" &&
+        notification.report_id != null
+      ) {
+        const reportId = Number(notification.report_id);
+        const report = await getReport(reportId);
+
+        if (String(report?.status || "").toUpperCase() !== "ACTIVE") {
+          throw new Error(
+            "This missing-pet alert is no longer active.",
+          );
+        }
+
+        const alertPet = mapNearbyReport({
+          ...report,
+          distance_meters: 0,
+        });
+
+        // The notification is proof that this member qualified for the
+        // nearby alert when it was created. We avoid exposing precise GPS
+        // coordinates here; the profile shows the report's location label.
+        alertPet.distanceLabel = "Nearby alert";
+
+        setNearbyAlerts((prev) => {
+          const withoutSameReport = prev.filter(
+            (item) => Number(item.reportId) !== reportId,
+          );
+          return [alertPet, ...withoutSameReport];
+        });
+
+        setSelectedPetId(alertPet.id);
+        setSelectedReportId(reportId);
+        setProfileOrigin("notifications");
+        setScreen("petProfile");
+        return;
+      }
+    } catch (error) {
+      console.error("Open notification error:", error);
+      setNotificationsError(
+        error.message || "Unable to open this notification.",
+      );
+    }
+  }
+
+  async function readAllNotifications() {
+    try {
+      await markAllNotificationsAsRead();
+      setNotifications((prev) =>
+        prev.map((item) => ({ ...item, is_read: true })),
+      );
+      setNotificationUnreadCount(0);
+    } catch (error) {
+      console.error("Mark all notifications read error:", error);
+      setNotificationsError(
+        error.message || "Unable to mark notifications as read.",
+      );
+    }
+  }
+
+  function loadNearbyAlerts() {
+    return ensureLocationConsent(async () => {
+      performLoadNearbyAlerts();
+    });
+  }
+
+  function performLoadNearbyAlerts() {
+    if (!navigator.geolocation) {
+      setNearbyError("Location is not available on this device.");
+      return;
+    }
+
+    setNearbyLoading(true);
+    setNearbyError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+
+          // Using Nearby Alerts is an explicit location-based action. Save
+          // this recent opt-in alert location so automatic missing-pet alerts
+          // can reach this member as a case expands from 1 km to 3 km to 5 km.
+          await updateAlertLocation(
+            latitude,
+            longitude,
+            true,
+          );
+
+          // Ask for the maximum policy radius. The backend applies each
+          // report's age-based radius (1 km / 3 km / 5 km).
+          const reports = await getNearbyReports(
+            latitude,
+            longitude,
+            5,
+          );
+
+          const rows = Array.isArray(reports) ? reports : [];
+
+          // "Nearby missing pets" is community-only. Never show the signed-in
+          // owner's own missing-pet reports in this section, even when their
+          // current device location falls inside the report's alert radius.
+          const myBackendPetIds = new Set(
+            pets
+              .map((pet) => Number(pet.backendPetId))
+              .filter((id) => Number.isFinite(id) && id > 0),
+          );
+
+          const communityRows = rows.filter((report) => {
+            const backendPetId = Number(report.pet_id);
+            return !(
+              Number.isFinite(backendPetId) &&
+              myBackendPetIds.has(backendPetId)
+            );
+          });
+
+          const mapped = communityRows.map(mapNearbyReport);
+
+          setNearbyAlerts(mapped);
+          setNearbyError(null);
+        } catch (error) {
+          console.error("Nearby reports error:", error);
+          setNearbyError(
+            error.message || "Unable to load nearby missing pets.",
+          );
+        } finally {
+          setNearbyLoading(false);
+        }
+      },
+      (error) => {
+        console.error("Location error:", error);
+        setNearbyLoading(false);
+        setNearbyError(
+          "Please allow location access to see nearby missing pets.",
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  }
+
+  useEffect(() => {
+    if (screen !== "alerts") {
+      return;
+    }
+
+    loadNearbyAlerts();
+  }, [screen]);
+
+  useEffect(() => {
+    loadNotificationUnreadCount();
+  }, []);
+
+  useEffect(() => {
+    if (screen !== "notifications") {
+      return;
+    }
+
+    loadNotifications();
+    loadMessageThreads();
+  }, [screen]);
+
+  // Keep message previews and unread badges fresh while the app is open.
+  // Inbox also refreshes immediately whenever the user enters it.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshMessagesInBackground() {
+      try {
+        const rows = await getMessageThreads();
+
+        if (!cancelled) {
+          setMessageThreads(Array.isArray(rows) ? rows : []);
+        }
+      } catch (error) {
+        // Background refresh stays quiet; Inbox shows errors on explicit loads.
+        console.error("Background message refresh error:", error);
+      }
+    }
+
+    refreshMessagesInBackground();
+
+    const intervalId = window.setInterval(
+      refreshMessagesInBackground,
+      15000,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // Android hardware/gesture back button. Deliberately NOT a static
   // `import { App } from '@capacitor/app'` -- that package isn't part of
@@ -798,6 +3702,36 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
 
   return (
     <>
+      {showLegalAcceptance && (
+        <LegalAcceptanceModal
+          onAccepted={async (data) => {
+            setPrivacyConsents(data);
+            setShowLegalAcceptance(false);
+            setLegalAcceptanceChecked(true);
+          }}
+        />
+      )}
+
+      {!showLegalAcceptance && showPrivacyConsent && (
+        <PrivacyConsentModal
+          onAccept={async (data) => {
+            setPrivacyConsents(data);
+            setShowPrivacyConsent(false);
+
+            const action = pendingLocationAction;
+            setPendingLocationAction(null);
+
+            if (action) {
+              await action();
+            }
+          }}
+          onCancel={() => {
+            setShowPrivacyConsent(false);
+            setPendingLocationAction(null);
+          }}
+        />
+      )}
+
       {ownerAlert && (
         <OwnerAlertBanner
           alert={ownerAlert}
@@ -814,6 +3748,7 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           activeCases={activeCases}
           reunitedCases={reunitedCases}
           onReport={startReport}
+          onOpenActiveSearch={openActiveSearch}
           onOpenTrail={openTrail}
           onAddPet={() => setScreen("addPet")}
           onOpenProfile={(petId) => openPetProfile(petId, "home")}
@@ -825,7 +3760,10 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
       {screen === "alerts" && (
         <AlertsScreen
           myActivePets={activePets}
-          communityAlerts={COMMUNITY_ALERTS}
+          communityAlerts={nearbyAlerts}
+          nearbyLoading={nearbyLoading}
+nearbyError={nearbyError}
+onRefreshNearby={loadNearbyAlerts}
           foundPetsBoard={foundPetsBoard}
           sightingsByPet={sightingsByPet}
           onOpenTrail={openTrail}
@@ -863,14 +3801,34 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           onDone={() => setScreen(isOwnPet ? "trail" : "alerts")}
         />
       )}
+      {screen === "notifications" && (
+        <NotificationsScreen
+          notifications={notifications}
+          loading={notificationsLoading}
+          error={notificationsError}
+          unreadCount={notificationUnreadCount}
+          onRefresh={loadNotifications}
+          onOpen={openNotification}
+          onReadAll={readAllNotifications}
+          pushSetupStatus={pushSetupStatus}
+          pushSetupError={pushSetupError}
+          onEnablePush={enablePushNotifications}
+          messageThreads={messageThreads}
+          messageThreadsLoading={messageThreadsLoading}
+          messageThreadsError={messageThreadsError}
+          onRefreshMessages={loadMessageThreads}
+          onOpenMessage={openInboxMessageThread}
+        />
+      )}
       {screen === "profile" && (
         <ProfileScreen
           userProfile={userProfile}
           myPetsCount={pets.length}
-          myReportsCount={Object.keys(activeCases).length}
+          myReportsCount={reportsSubmittedCount}
           sightingsCount={sightingsSubmittedCount}
           heroReunionsCount={heroReunionsCount}
           thankYouMessages={thankYouMessagesReceived}
+          heroRecognitionsLoading={heroRecognitionsLoading}
           signupRank={signupRank}
           onViewReunionStory={(id) => openReunionStory(id, "profile")}
           onEditProfile={() => setScreen("profileEdit")}
@@ -937,8 +3895,8 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
       {screen === "profileEdit" && (
         <ProfileEditScreen
           userProfile={userProfile}
-          onSave={(updated) => {
-            setUserProfile(updated);
+          onSave={async (updated) => {
+            await saveUserProfile(updated);
             setScreen("profile");
           }}
           onBack={() => setScreen("profile")}
@@ -946,7 +3904,14 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
       )}
       {screen === "reunionStory" && (
         <ReunionStoryScreen
-          story={[...thankYouMessagesReceived, ...reunionStories].find((m) => m.id === selectedStoryId)}
+          story={(() => {
+            const selected = [...thankYouMessagesReceived, ...reunionStories].find(
+              (m) => m.id === selectedStoryId,
+            );
+            return selected?.reunionStory
+              ? { ...selected, message: selected.reunionStory }
+              : selected;
+          })()}
           onBack={() => setScreen(storyOrigin)}
         />
       )}
@@ -970,6 +3935,7 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           onAddPet={() => setScreen("addPet")}
           hasPets={pets.length > 0}
           reunionStories={reunionStories}
+          reunionStoriesLoading={reunionStoriesLoading}
           onViewReunionStory={(id) => openReunionStory(id, "feed")}
         />
       )}
@@ -983,6 +3949,8 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           mapRef={mapRef}
           onMapClick={handleMapClick}
           onUseCurrentLocation={useCurrentLocation}
+          missingGps={missingGps}
+          missingGpsStatus={missingGpsStatus}
           coordsForPin={coordsForPin}
           timeLabel={timeLabel}
           setTimeLabel={setTimeLabel}
@@ -1004,49 +3972,170 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           setRadiusKm={setRadiusKm}
           onBack={() => setScreen("details")}
           onActivate={activateCase}
+          submitting={missingSubmitting}
+          error={apiError}
         />
       )}
       {screen === "active" && selectedPet && (
         <ActiveScreen
           pet={selectedPet}
-          radiusKm={radiusKm}
+          activatedAt={caseDates[selectedPet.id]?.activatedAt || null}
+          lastSeenLatitude={selectedPet.lastSeenLatitude ?? null}
+          lastSeenLongitude={selectedPet.lastSeenLongitude ?? null}
+          sightings={sightingsByPet[selectedPet.id] || []}
+          potentialMatches={potentialMatchesByPet[selectedPet.id] || []}
+          potentialMatchesLoading={potentialMatchesLoading}
+          potentialMatchSavingId={potentialMatchSavingId}
+          focusedPotentialSightingId={focusedPotentialSightingId}
+          onReviewPotentialMatch={(sightingId, verdict) =>
+            reviewPotentialSightingMatch(
+              selectedPet.id,
+              sightingId,
+              verdict,
+            )
+          }
           onDone={() => setScreen("home")}
           onViewTrail={() => openTrail(selectedPet.id)}
+        />
+      )}
+      {screen === "pendingReview" && selectedPet && (
+        <PendingReviewScreen
+          pet={selectedPet}
+          onDone={() => setScreen("home")}
         />
       )}
       {screen === "trail" && selectedPet && (
         <TrailScreen
           pet={selectedPet}
           sightings={sightingsByPet[selectedPet.id] || []}
+          isOwnPet={isOwnPet}
           onBack={() => setScreen("home")}
           onReportSighting={() => openReportSighting(selectedPet.id)}
           onReunite={() => openReunite(selectedPet.id)}
-          onMessage={(s) =>
+          onVerifySighting={(sightingId, verdict) =>
+            verifySightingForOwner(selectedPet.id, sightingId, verdict)
+          }
+          onReportAbuse={(sightingId, reason, details) =>
+            reportSightingForAbuse(
+              selectedPet.id,
+              sightingId,
+              reason,
+              details,
+            )
+          }
+          onMessage={(s) => {
+            const reportId =
+              selectedPet.reportId ||
+              reportIdByPet[selectedPet.id];
+
             openMessageThread({
               id: s.id,
               title: s.reporterName,
               subtitle: `About their sighting ${s.distanceLabel} · ${s.timeLabel}`,
               origin: "trail",
-            })
-          }
+              reportId: reportId ? Number(reportId) : null,
+              otherUserId: s.reporterId ? Number(s.reporterId) : null,
+              isReal: Boolean(
+                s.isBackendSighting &&
+                reportId &&
+                s.reporterId,
+              ),
+            });
+          }}
         />
       )}
       {screen === "messageThread" && messageThreadSubject && (
         <MessageThreadScreen
           title={messageThreadSubject.title}
           subtitle={messageThreadSubject.subtitle}
-          messages={messagesByThread[messageThreadSubject.id] || []}
+          messages={
+            messageThreadSubject.isReal
+              ? realThreadMessages
+              : messagesByThread[messageThreadSubject.id] || []
+          }
+          loading={
+            messageThreadSubject.isReal
+              ? realThreadLoading
+              : false
+          }
+          sending={
+            messageThreadSubject.isReal
+              ? realThreadSending
+              : false
+          }
+          error={
+            messageThreadSubject.isReal
+              ? realThreadError
+              : null
+          }
           onBack={() => setScreen(messageThreadSubject.origin || "home")}
           onSend={(text) => sendMessage(messageThreadSubject.id, text)}
+          canModerate={Boolean(
+            messageThreadSubject.isReal &&
+            messageThreadSubject.otherUserId
+          )}
+          onReportUser={reportCurrentMessageUser}
+          onBlockUser={blockCurrentMessageUser}
         />
       )}
       {screen === "reportSighting" && selectedPet && (
-        <ReportSightingScreen
-          pet={selectedPet}
-          onBack={() => setScreen(isOwnPet && activeCases[selectedPet.id] ? "trail" : "alerts")}
-          onSubmit={submitSighting}
-        />
-      )}
+  <ReportSightingScreen
+    pet={selectedPet}
+    reportId={
+      Number(selectedReportId) ||
+      Number(selectedPet?.reportId) ||
+      (String(selectedPet?.id || "").startsWith("backend-report-")
+        ? Number(String(selectedPet.id).replace("backend-report-", ""))
+        : 0) ||
+      Number(reportIdByPet[selectedPet.id]) ||
+      null
+    }
+    onBack={() =>
+      setScreen(
+        isOwnPet &&
+          activeCases[selectedPet.id]
+          ? "trail"
+          : "alerts",
+      )
+    }
+    ensureLocationConsent={ensureLocationConsent}
+    onSuccess={({ sighting, photos, gps, comment }) => {
+      const newSighting = {
+        id: Number(sighting.sighting_id),
+        reporterName: "You",
+        distanceLabel: "Current location",
+        timeLabel: "just now",
+        confidence: "PENDING",
+        signals: [],
+        comment,
+        captureLat: gps.lat,
+        captureLng: gps.lng,
+        gpsAccuracyMeters: gps.accuracy,
+        photos: photos.map(
+          (photo) => photo.file_url,
+        ),
+        photoUrl:
+          photos[0]?.file_url || null,
+      };
+
+      setSightingsByPet((prev) => ({
+        ...prev,
+        [selectedPet.id]: [
+          ...(prev[selectedPet.id] || []),
+          newSighting,
+        ],
+      }));
+
+      setSightingsSubmittedCount(
+        (prev) => prev + 1,
+      );
+
+      setScreen(
+        isOwnPet ? "trail" : "alerts",
+      );
+    }}
+  />
+)}
       {screen === "pendingSighting" && selectedPet && (
         <PendingSightingScreen
           pet={selectedPet}
@@ -1063,10 +4152,16 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           setHeroSelection={setHeroSelection}
           thankYouMessage={thankYouMessage}
           setThankYouMessage={setThankYouMessage}
+          reunionMethod={reunionMethod}
+          setReunionMethod={setReunionMethod}
+          reunionStory={reunionStory}
+          setReunionStory={setReunionStory}
           shareAsStory={shareAsStory}
           setShareAsStory={setShareAsStory}
           onBack={() => setScreen("trail")}
           onConfirm={confirmReunite}
+          submitting={reuniteSubmitting}
+          error={apiError}
         />
       )}
       {screen === "reunited" && selectedPet && (
@@ -1076,7 +4171,19 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
           onDone={() => setScreen("home")}
         />
       )}
-      {showTabBar && <TabBar screen={screen} setScreen={setScreen} />}
+      {showTabBar && (
+        <TabBar
+          screen={screen}
+          setScreen={setScreen}
+          notificationUnreadCount={
+            notificationUnreadCount +
+            messageThreads.reduce(
+              (total, thread) => total + Number(thread.unread_count || 0),
+              0,
+            )
+          }
+        />
+      )}
     </>
   );
 }
@@ -1171,7 +4278,7 @@ function ConfidenceBadge({ level }) {
   );
 }
 
-function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenTrail, onAddPet, onOpenProfile }) {
+function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSearch, onOpenTrail, onAddPet, onOpenProfile }) {
   return (
     <div>
       <div className="mb-6">
@@ -1182,8 +4289,16 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenTrail, o
       </p>
       <div className="flex flex-col gap-3">
         {pets.map((pet) => {
-          const isActive = activeCases[pet.id] && !reunitedCases[pet.id];
-          const reunion = reunitedCases[pet.id];
+          // Prefer the persisted backend pet status over temporary UI maps.
+          // This keeps REUNITED pets from being shown as ACTIVE SEARCH after
+          // navigation/reload when local activeCases state is stale.
+          const isBackendReunited = pet.backendStatus === "REUNITED";
+          const reunion = reunitedCases[pet.id] ||
+            (isBackendReunited ? { heroName: null, message: "" } : null);
+          const isActive =
+            !isBackendReunited &&
+            (pet.backendStatus === "MISSING" || activeCases[pet.id]) &&
+            !reunion;
           return (
             <div
               key={pet.id}
@@ -1215,21 +4330,41 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenTrail, o
                     <Heart size={13} fill="#E2572B" /> REUNITED
                   </div>
                 )}
+                {!isActive && !reunion && (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#2F6E62" }}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: "#2F6E62" }} />
+                    HOME
+                  </div>
+                )}
               </div>
 
               {isActive ? (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onOpenTrail(pet.id); }}
-                  className="amr-btn-teal w-full mt-3 py-2.5 rounded-md text-sm"
-                >
-                  View sighting trail
-                </button>
+                <div className="mt-3 flex flex-col gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenActiveSearch(pet.id);
+                    }}
+                    className="amr-btn-teal w-full py-2.5 rounded-md text-sm"
+                  >
+                    View Active Search Map
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenTrail(pet.id);
+                    }}
+                    className="amr-btn-secondary w-full py-2.5 rounded-md text-sm"
+                  >
+                    View Sighting Trail
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); onReport(pet.id); }}
                   className="amr-btn-primary w-full mt-3 py-2.5 rounded-md text-sm"
                 >
-                  Report Missing
+                  Report Missing Now
                 </button>
               )}
             </div>
@@ -1261,6 +4396,8 @@ function AddPetScreen({ onBack, onSave }) {
   const [markings, setMarkings] = useState("");
   const [microchipped, setMicrochipped] = useState(null); // "yes" | "no"
   const [microchipNumber, setMicrochipNumber] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   function addPhoto() {
     if (photos.length >= MAX_PET_PHOTOS) return;
@@ -1283,23 +4420,39 @@ function AddPetScreen({ onBack, onSave }) {
     microchipped !== null &&
     (microchipped === "no" || microchipNumber.trim().length > 0);
 
-  function save() {
-    onSave({
-      id: `pet-${Date.now()}`,
-      name: name.trim(),
-      species,
-      breed: breed.trim(),
-      sex,
-      birthday: birthday || null,
-      primaryColor: primaryColor.trim(),
-      markings: markings.trim(),
-      microchipped: microchipped === "yes",
-      microchipNumber: microchipped === "yes" ? microchipNumber.trim() : null,
-      photos,
-      // Avatar shown in lists is the first photo -- makes the pet card
-      // reflect what was actually captured instead of an arbitrary color.
-      color: photos[0],
-    });
+  async function save() {
+    if (!canSave || saving) {
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      await onSave({
+        name: name.trim(),
+        species,
+        breed: breed.trim(),
+        sex,
+        birthday: birthday || null,
+        primaryColor: primaryColor.trim(),
+        markings: markings.trim(),
+        microchipped: microchipped === "yes",
+        microchipNumber:
+          microchipped === "yes"
+            ? microchipNumber.trim()
+            : null,
+        photos,
+        color: photos[0],
+      });
+    } catch (error) {
+      console.error("Create pet error:", error);
+      setSaveError(
+        error.message || "Unable to save your pet.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -1451,14 +4604,83 @@ function AddPetScreen({ onBack, onSave }) {
         </div>
       )}
 
-      <button disabled={!canSave} onClick={save} className="amr-btn-primary w-full py-3 rounded-md mt-2">
-        Save Pet
+      {saveError && (
+        <div
+          className="rounded-md p-3 mb-3 text-sm"
+          style={{
+            background: "#FCE8E3",
+            color: "#B9382B",
+          }}
+        >
+          {saveError}
+        </div>
+      )}
+
+      <button
+        disabled={!canSave || saving}
+        onClick={save}
+        className="amr-btn-primary w-full py-3 rounded-md mt-2"
+      >
+        {saving ? "Saving Pet..." : "Save Pet"}
       </button>
     </div>
   );
 }
 
-function AlertsScreen({ myActivePets, communityAlerts, foundPetsBoard, sightingsByPet, onOpenTrail, onReportSighting, onOpenProfile, onFoundPet, onMessageFinder }) {
+async function shareMissingPetAlert(pet) {
+  const petName = pet?.name || "this missing pet";
+  const rawLocation = String(pet?.lastLocationText || "").trim();
+  const location =
+    rawLocation &&
+    !/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(rawLocation)
+      ? rawLocation
+      : "the reported area";
+  const when = pet?.lastSeenLabel || "recently";
+
+  const shareText =
+    `🚨 MISSING PET — ${petName}\n` +
+    `Last seen: ${location} · ${when}\n\n` +
+    `Please keep an eye out. If you see ${petName}, report the sighting through REunited.\n\n` +
+    `For privacy and safety, the owner's identity and exact GPS location are not included.`;
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: `Missing Pet: ${petName}`,
+        text: shareText,
+      });
+      return;
+    }
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareText);
+      window.alert("Missing-pet alert copied. You can paste it into Messenger, Facebook, Viber, SMS, or another app.");
+      return;
+    }
+
+    window.prompt("Copy this missing-pet alert:", shareText);
+  } catch (error) {
+    // Closing the native share sheet is normal and should not show an error.
+    if (error?.name !== "AbortError") {
+      console.error("Share missing-pet alert error:", error);
+    }
+  }
+}
+
+function AlertsScreen({
+  myActivePets,
+  communityAlerts,
+  nearbyLoading,
+  nearbyError,
+  onRefreshNearby,
+  foundPetsBoard,
+  sightingsByPet,
+  onOpenTrail,
+  onReportSighting,
+  onOpenProfile,
+  onFoundPet,
+  onMessageFinder,
+}) {
   const hasAny = myActivePets.length > 0 || communityAlerts.length > 0;
   const [enlargedFoundPet, setEnlargedFoundPet] = useState(null);
   return (
@@ -1467,7 +4689,35 @@ function AlertsScreen({ myActivePets, communityAlerts, foundPetsBoard, sightings
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Every active search nearby, yours and the community's.
       </p>
+{nearbyLoading && (
+  <div
+    className="text-sm mb-4"
+    style={{ color: "#6B6459" }}
+  >
+    📍 Finding missing pets near you...
+  </div>
+)}
 
+{nearbyError && (
+  <div
+    className="amr-panel rounded-lg p-3 mb-4"
+  >
+    <div
+      className="text-sm mb-2"
+      style={{ color: "#6B6459" }}
+    >
+      {nearbyError}
+    </div>
+
+    <button
+      type="button"
+      onClick={onRefreshNearby}
+      className="amr-btn-secondary w-full py-2 rounded-md text-sm"
+    >
+      Try Again
+    </button>
+  </div>
+)}
       {!hasAny && (
         <p className="text-sm italic" style={{ color: "#6B6459" }}>
           No active alerts right now.
@@ -1499,7 +4749,15 @@ function AlertsScreen({ myActivePets, communityAlerts, foundPetsBoard, sightings
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm">{pet.name}</div>
-                      <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} · {pet.species}</div>
+                      <div
+  className="text-xs"
+  style={{ color: "#6B6459" }}
+>
+  {pet.species}
+  {pet.lastLocationText
+    ? ` · ${pet.lastLocationText}`
+    : ""}
+</div>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#2F6E62" }}>
                       <span className="w-2 h-2 rounded-full amr-pulse" style={{ background: "#2F6E62" }} />
@@ -1534,35 +4792,99 @@ function AlertsScreen({ myActivePets, communityAlerts, foundPetsBoard, sightings
               return (
                 <div
                   key={pet.id}
-                  onClick={() => onOpenProfile(pet.id)}
                   className="amr-panel rounded-lg p-3.5"
-                  style={{ cursor: "pointer" }}
                 >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold shrink-0"
+                  <div className="flex items-start gap-3 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => onOpenProfile(pet.id)}
+                      className="w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center text-white font-semibold shrink-0"
                       style={{ background: pet.color }}
+                      aria-label={`View ${pet.name}'s missing-pet alert`}
                     >
-                      {pet.name[0]}
-                    </div>
+                      {pet.photos?.[0] ? (
+                        <img
+                          src={pet.photos[0]}
+                          alt={pet.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xl">{pet.name[0]}</span>
+                      )}
+                    </button>
+
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm">{pet.name}</div>
-                      <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} · {pet.species} · owner: {pet.ownerName}</div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold">{pet.name}</div>
+                        <span
+                          className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0"
+                          style={{ background: "#E2572B", color: "#F2E9D8" }}
+                        >
+                          MISSING
+                        </span>
+                      </div>
+
+                      <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
+                        {pet.breed} · {pet.species}
+                      </div>
+
+                      <div className="text-xs mt-2" style={{ color: "#6B6459" }}>
+                        📍 {pet.lastLocationText &&
+                        !/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(
+                          String(pet.lastLocationText),
+                        )
+                          ? pet.lastLocationText
+                          : "Approximate area reported"}
+                      </div>
+
+                      <div className="text-xs mt-1" style={{ color: "#6B6459" }}>
+                        🕐 Last seen {pet.lastSeenLabel || "recently"}
+                      </div>
+
+                      <div className="text-xs mt-1 font-semibold" style={{ color: "#2F6E62" }}>
+                        📡 {pet.distanceLabel || "Nearby alert"}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs mb-1" style={{ color: "#6B6459" }}>
-                    <span>Last seen {pet.lastSeenLabel} · {pet.distanceLabel}</span>
-                    <span>{pet.radiusKm} km radius</span>
-                  </div>
+
+                  {pet.description && (
+                    <div
+                      className="text-xs rounded-md p-2.5 mb-3"
+                      style={{ background: "#EDE3CD", color: "#6B6459" }}
+                    >
+                      {pet.description}
+                    </div>
+                  )}
+
                   <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
                     👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenProfile(pet.id)}
+                      className="amr-btn-teal w-full py-2 rounded-md text-sm"
+                    >
+                      View Search
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReportSighting(pet.id)}
+                      className="amr-btn-secondary w-full py-2 rounded-md text-sm flex items-center justify-center gap-1.5"
+                    >
+                      <Camera size={14} />
+                      Report Sighting
+                    </button>
+                  </div>
+
                   <button
-                    onClick={(e) => { e.stopPropagation(); onReportSighting(pet.id); }}
-                    className="amr-btn-secondary w-full py-2 rounded-md text-sm flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => shareMissingPetAlert(pet)}
+                    className="amr-btn-secondary w-full py-2 rounded-md text-sm flex items-center justify-center gap-1.5 mt-2"
                   >
-                    <Camera size={15} />
-                    Report a sighting of {pet.name}
+                    <Share2 size={14} />
+                    Share Alert
                   </button>
                 </div>
               );
@@ -1653,7 +4975,7 @@ function StatRow({ emoji, label, value, isLast }) {
   );
 }
 
-function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCount, heroReunionsCount, thankYouMessages, signupRank, onViewReunionStory, onEditProfile, onViewAmariMessage, onMessageAmari, onOpenSettings }) {
+function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCount, heroReunionsCount, thankYouMessages, heroRecognitionsLoading, signupRank, onViewReunionStory, onEditProfile, onViewAmariMessage, onMessageAmari, onOpenSettings }) {
   const hasEmergencyContact = userProfile.emergencyContactName || userProfile.emergencyContactPhone;
   return (
     <div>
@@ -1687,9 +5009,12 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
         <div className="flex items-start justify-between mb-2">
           <div>
             <div className="font-semibold text-lg">{userProfile.fullName || "Add your name"}</div>
-            <div className="flex items-center gap-1.5 text-sm font-medium mt-0.5" style={{ color: "#2F6E62" }}>
+            <div
+              className="flex items-center gap-1.5 text-sm font-medium mt-0.5"
+              style={{ color: userProfile.emailVerified ? "#2F6E62" : "#6B6459" }}
+            >
               <CheckCircle2 size={15} />
-              Identity Verified
+              {userProfile.emailVerified ? "Email Verified" : "Email Not Verified"}
             </div>
           </div>
           <button onClick={onEditProfile} className="text-xs font-semibold shrink-0" style={{ color: "#2F6E62" }}>
@@ -1754,18 +5079,60 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
         <StatRow emoji="🏅" label="HERO REUNIONS" value={heroReunionsCount} isLast />
       </div>
 
-      {heroReunionsCount > 0 && (
+      {heroRecognitionsLoading ? (
         <div className="amr-panel rounded-lg p-4 mb-5">
-          <div className="font-semibold text-sm mb-1">🏅 HERO</div>
-          <p className="text-sm" style={{ color: "#6B6459" }}>
-            Helped reunite {heroReunionsCount} pet{heroReunionsCount === 1 ? "" : "s"}
+          <div className="font-semibold text-sm mb-1">🏅 HERO RECOGNITION</div>
+          <p className="text-sm italic" style={{ color: "#6B6459" }}>
+            Loading Hero Badge...
           </p>
         </div>
-      )}
+      ) : heroReunionsCount > 0 ? (
+        <div className="amr-panel rounded-lg p-4 mb-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "#E2572B", color: "#F2E9D8" }}
+            >
+              <Award size={24} />
+            </div>
+            <div>
+              <div className="font-semibold text-sm">🏅 REunited Hero Badge</div>
+              <p className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
+                You helped reunite {heroReunionsCount} pet{heroReunionsCount === 1 ? "" : "s"} with their family.
+              </p>
+            </div>
+          </div>
+
+          {thankYouMessages.slice(0, 1).map((recognition) => (
+            <div
+              key={`hero-highlight-${recognition.id}`}
+              className="rounded-md p-3"
+              style={{ background: "#F7F0E3", border: "1px solid #CBBFA0" }}
+            >
+              <div className="font-semibold text-sm mb-1">
+                You helped reunite {recognition.petName}!
+              </div>
+              {recognition.ownerName && (
+                <div className="text-xs mb-2" style={{ color: "#6B6459" }}>
+                  Recognition from {recognition.ownerName}
+                  {recognition.timeLabel ? ` · ${recognition.timeLabel}` : ""}
+                </div>
+              )}
+              <p className="text-xs" style={{ color: "#6B6459" }}>
+                Hero recognition earned
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="amr-panel rounded-lg p-4 mb-5">
         <div className="font-semibold text-sm mb-3">💌 THANK-YOU MESSAGES</div>
-        {thankYouMessages.length === 0 ? (
+        {heroRecognitionsLoading ? (
+          <p className="text-sm italic" style={{ color: "#6B6459" }}>
+            Loading Hero recognitions...
+          </p>
+        ) : thankYouMessages.length === 0 ? (
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
             No thank-you messages yet.
           </p>
@@ -1773,14 +5140,19 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
           <div className="flex flex-col gap-3">
             {thankYouMessages.map((m) => (
               <div key={m.id}>
+                <div className="text-xs font-semibold mb-1" style={{ color: "#6B6459" }}>
+                  {m.petName}
+                </div>
                 <p className="text-sm italic mb-1.5">"{m.message}"</p>
-                <button
-                  onClick={() => onViewReunionStory(m.id)}
-                  className="text-sm font-semibold flex items-center gap-1.5"
-                  style={{ color: "#2F6E62" }}
-                >
-                  ▶ View Reunion Story
-                </button>
+                {m.reunionStory && (
+                  <button
+                    onClick={() => onViewReunionStory(m.id)}
+                    className="text-sm font-semibold flex items-center gap-1.5"
+                    style={{ color: "#2F6E62" }}
+                  >
+                    ▶ View Reunion Story
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2064,6 +5436,355 @@ function ChangePasswordScreen({ onBack }) {
   );
 }
 
+function NotificationsScreen({
+  notifications,
+  loading,
+  error,
+  unreadCount,
+  onRefresh,
+  onOpen,
+  onReadAll,
+  pushSetupStatus = "idle",
+  pushSetupError = null,
+  onEnablePush,
+  messageThreads = [],
+  messageThreadsLoading = false,
+  messageThreadsError = null,
+  onRefreshMessages,
+  onOpenMessage,
+}) {
+  function notificationTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const diffMs = Date.now() - date.getTime();
+    const minutes = Math.max(0, Math.floor(diffMs / 60000));
+
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes}m ago`;
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+
+  const messageUnreadCount = messageThreads.reduce(
+    (total, thread) => total + Number(thread.unread_count || 0),
+    0,
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="amr-display text-3xl leading-none">Inbox</div>
+          <div className="text-xs mt-1" style={{ color: "#6B6459" }}>
+            {unreadCount + messageUnreadCount > 0
+              ? `${unreadCount + messageUnreadCount} unread`
+              : "You're all caught up"}
+          </div>
+        </div>
+      </div>
+
+      <div className="amr-panel rounded-lg p-4 mb-5">
+        <div className="flex items-start gap-3">
+          <div
+            className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center"
+            style={{
+              background:
+                pushSetupStatus === "registered" ? "#2F6E62" : "#DED2B4",
+              color:
+                pushSetupStatus === "registered" ? "#F2E9D8" : "#20291F",
+            }}
+          >
+            <Bell size={18} />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold">Phone/browser alerts</div>
+
+            {pushSetupStatus === "registered" ? (
+              <div className="text-sm mt-1" style={{ color: "#2F6E62" }}>
+                ✓ This browser is registered for REunited push alerts.
+              </div>
+            ) : pushSetupStatus === "unsupported" ? (
+              <div className="text-sm mt-1" style={{ color: "#7C2D12" }}>
+                Push notifications are not supported by this browser.
+              </div>
+            ) : pushSetupStatus === "denied" ? (
+              <div className="text-sm mt-1" style={{ color: "#7C2D12" }}>
+                Notifications are blocked. Allow notifications for this site in
+                your browser settings, then return here.
+              </div>
+            ) : (
+              <>
+                <div className="text-sm mt-1" style={{ color: "#6B6459" }}>
+                  Enable alerts so REunited can reach you even when you are not
+                  actively looking at the Inbox.
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onEnablePush}
+                  disabled={pushSetupStatus === "registering"}
+                  className="amr-btn-primary px-4 py-2 rounded-md mt-3 text-sm"
+                >
+                  {pushSetupStatus === "registering"
+                    ? "Enabling..."
+                    : "Enable Push Notifications"}
+                </button>
+              </>
+            )}
+
+            {pushSetupError && pushSetupStatus !== "denied" && (
+              <div
+                className="text-xs mt-2"
+                style={{ color: "#7C2D12" }}
+              >
+                {pushSetupError}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-semibold flex items-center gap-2">
+          <MessageCircle size={17} />
+          Messages
+          {messageUnreadCount > 0 && (
+            <span
+              className="min-w-5 h-5 px-1.5 rounded-full text-[10px] leading-5 text-center"
+              style={{ background: "#E2572B", color: "#F2E9D8" }}
+            >
+              {messageUnreadCount > 99 ? "99+" : messageUnreadCount}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {messageThreadsError && (
+        <div
+          className="rounded-lg p-3 mb-3 text-sm"
+          style={{ background: "#F7DDD3", color: "#7C2D12" }}
+        >
+          <div>{messageThreadsError}</div>
+          <button
+            type="button"
+            onClick={onRefreshMessages}
+            className="font-semibold mt-2"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {messageThreadsLoading && (
+        <div className="amr-panel rounded-lg p-4 text-sm mb-4" style={{ color: "#6B6459" }}>
+          Loading messages...
+        </div>
+      )}
+
+      {!messageThreadsLoading &&
+        !messageThreadsError &&
+        messageThreads.length === 0 && (
+          <div className="amr-panel rounded-lg p-4 text-sm mb-5" style={{ color: "#6B6459" }}>
+            No messages yet.
+          </div>
+        )}
+
+      {!messageThreadsLoading && messageThreads.length > 0 && (
+        <div className="flex flex-col gap-3 mb-6">
+          {messageThreads.map((thread) => {
+            const threadUnread = Number(thread.unread_count || 0);
+
+            return (
+              <button
+                type="button"
+                key={`${thread.report_id}-${thread.other_user_id}`}
+                onClick={() => onOpenMessage(thread)}
+                className="amr-panel rounded-lg p-4 text-left w-full"
+                style={{
+                  border: threadUnread > 0
+                    ? "2px solid #2F6E62"
+                    : undefined,
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center"
+                    style={{
+                      background: threadUnread > 0 ? "#2F6E62" : "#DED2B4",
+                      color: threadUnread > 0 ? "#F2E9D8" : "#20291F",
+                    }}
+                  >
+                    <MessageCircle size={18} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-semibold text-sm">
+                        {thread.other_user_name || "REunited member"}
+                      </div>
+                      {threadUnread > 0 && (
+                        <span
+                          className="min-w-5 h-5 px-1 rounded-full text-[10px] leading-5 text-center shrink-0"
+                          style={{ background: "#E2572B", color: "#F2E9D8" }}
+                        >
+                          {threadUnread > 99 ? "99+" : threadUnread}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
+                      {thread.report_name
+                        ? `About ${thread.report_name}`
+                        : `Report #${thread.report_id}`}
+                    </div>
+
+                    <div className="text-sm mt-1 truncate">
+                      {Number(thread.sender_id) === Number(thread.other_user_id)
+                        ? ""
+                        : "You: "}
+                      {thread.message_text}
+                    </div>
+
+                    <div className="text-xs mt-2" style={{ color: "#6B6459" }}>
+                      {notificationTime(thread.created_at)}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div
+        className="flex items-center justify-between pt-4 mb-3"
+        style={{ borderTop: "2px solid #CBBFA0" }}
+      >
+        <div className="font-semibold flex items-center gap-2">
+          <Bell size={17} />
+          Notifications
+          {unreadCount > 0 && (
+            <span
+              className="min-w-5 h-5 px-1.5 rounded-full text-[10px] leading-5 text-center"
+              style={{ background: "#E2572B", color: "#F2E9D8" }}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </div>
+
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={onReadAll}
+            className="text-xs font-semibold"
+            style={{ color: "#2F6E62" }}
+          >
+            Mark all read
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div
+          className="rounded-lg p-3 mb-3 text-sm"
+          style={{ background: "#F7DDD3", color: "#7C2D12" }}
+        >
+          <div>{error}</div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="font-semibold mt-2"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="amr-panel rounded-lg p-4 text-sm" style={{ color: "#6B6459" }}>
+          Loading notifications...
+        </div>
+      )}
+
+      {!loading && !error && notifications.length === 0 && (
+        <div className="amr-panel rounded-lg p-5 text-center">
+          <Bell size={21} className="mx-auto mb-2" />
+          <div className="font-semibold mb-1">No notifications yet</div>
+          <div className="text-sm" style={{ color: "#6B6459" }}>
+            Nearby missing-pet alerts and new sightings for your pets will appear here.
+          </div>
+        </div>
+      )}
+
+      {!loading && notifications.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {notifications.map((notification) => (
+            <button
+              type="button"
+              key={notification.notification_id}
+              onClick={() => onOpen(notification)}
+              className="amr-panel rounded-lg p-4 text-left w-full"
+              style={{
+                border: notification.is_read
+                  ? undefined
+                  : "2px solid #2F6E62",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center"
+                  style={{
+                    background: notification.is_read ? "#DED2B4" : "#2F6E62",
+                    color: notification.is_read ? "#20291F" : "#F2E9D8",
+                  }}
+                >
+                  <Bell size={18} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-semibold text-sm">
+                      {notification.title}
+                    </div>
+                    {!notification.is_read && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
+                        style={{ background: "#E2572B" }}
+                      />
+                    )}
+                  </div>
+
+                  <div className="text-sm mt-1" style={{ color: "#6B6459" }}>
+                    {notification.message}
+                  </div>
+
+                  <div className="text-xs mt-2 flex gap-3" style={{ color: "#6B6459" }}>
+                    <span>{notificationTime(notification.created_at)}</span>
+                    {notification.report_id != null && (
+                      <span>Report #{notification.report_id}</span>
+                    )}
+                    {notification.sighting_id != null && (
+                      <span>Sighting #{notification.sighting_id}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NotificationSettingsScreen({ onBack }) {
   const [prefs, setPrefs] = useState({
     sightingAlerts: true,
@@ -2125,14 +5846,15 @@ function DeleteAccountStep1Screen({ onBack, onContinue }) {
       <div className="amr-panel rounded-lg p-4 mb-6">
         <p className="text-sm mb-3">Deleting your account will permanently remove:</p>
         <ul className="text-sm space-y-1.5" style={{ color: "#6B6459" }}>
-          <li>· Your profile, pets, and photos</li>
-          <li>· Any active or past missing-pet cases</li>
-          <li>· Sightings you've reported and messages you've sent</li>
-          <li>· Your Founding Member status and Hero recognitions</li>
+          <li>· Your personal profile and contact information</li>
+          <li>· Private pet identifiers and pet photos</li>
+          <li>· Notifications and message text you've sent</li>
+          <li>· Your ability to sign in to this account</li>
         </ul>
         <p className="text-sm mt-3" style={{ color: "#6B6459" }}>
-          If you have an active search, consider marking it resolved or
-          messaging the team first — this can't be reversed once confirmed.
+          Community recovery history may be retained in anonymized form so other users'
+          reports, sightings, and reunion records remain intact. Active missing-pet
+          searches must be resolved before deletion.
         </p>
       </div>
 
@@ -2148,7 +5870,21 @@ function DeleteAccountStep1Screen({ onBack, onContinue }) {
 
 function DeleteAccountStep2Screen({ onBack, onConfirm }) {
   const [confirmText, setConfirmText] = useState("");
-  const canDelete = confirmText.trim().toUpperCase() === "DELETE";
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const canDelete = confirmText.trim().toUpperCase() === "DELETE" && !deleting;
+
+  async function handleDelete() {
+    if (!canDelete) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await onConfirm(confirmText.trim().toUpperCase());
+    } catch (err) {
+      setError(err?.message || "Unable to delete your account.");
+      setDeleting(false);
+    }
+  }
 
   return (
     <div>
@@ -2169,11 +5905,16 @@ function DeleteAccountStep2Screen({ onBack, onConfirm }) {
 
       <button
         disabled={!canDelete}
-        onClick={onConfirm}
+        onClick={handleDelete}
         className="amr-btn-primary w-full py-3 rounded-md mb-2"
       >
-        Permanently Delete My Account
+        {deleting ? "Deleting Account..." : "Permanently Delete My Account"}
       </button>
+      {error && (
+        <div className="text-xs mb-3 text-center" style={{ color: "#B23A20" }}>
+          {error}
+        </div>
+      )}
       <button onClick={onBack} className="amr-btn-secondary w-full py-3 rounded-md">
         Cancel
       </button>
@@ -2205,22 +5946,36 @@ function AmariMessageScreen({ rank, onBack }) {
 function ProfileEditScreen({ userProfile, onSave, onBack }) {
   const [fullName, setFullName] = useState(userProfile.fullName);
   const [phone, setPhone] = useState(userProfile.phone);
-  const [email, setEmail] = useState(userProfile.email);
+  const [email] = useState(userProfile.email);
   const [address, setAddress] = useState(userProfile.address);
   const [emergencyContactName, setEmergencyContactName] = useState(userProfile.emergencyContactName);
   const [emergencyContactPhone, setEmergencyContactPhone] = useState(userProfile.emergencyContactPhone);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
-  const canSave = fullName.trim().length > 0 && (phone.trim().length > 0 || email.trim().length > 0);
+  const canSave = !saving && fullName.trim().length > 0;
 
-  function save() {
-    onSave({
-      fullName: fullName.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      address: address.trim(),
-      emergencyContactName: emergencyContactName.trim(),
-      emergencyContactPhone: emergencyContactPhone.trim(),
-    });
+  async function save() {
+    setSaving(true);
+    setSaveError("");
+
+    try {
+      await onSave({
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        address: address.trim(),
+        emergencyContactName: emergencyContactName.trim(),
+        emergencyContactPhone: emergencyContactPhone.trim(),
+        emailVerified: userProfile.emailVerified,
+      });
+    } catch (error) {
+      console.error("Save profile error:", error);
+      setSaveError(
+        error.message || "Unable to save your profile.",
+      );
+      setSaving(false);
+    }
   }
 
   return (
@@ -2249,10 +6004,13 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
       <input
         type="email"
         value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
-        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
+        readOnly
+        aria-readonly="true"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-1 opacity-70"
       />
+      <p className="text-xs mb-4" style={{ color: "#6B6459" }}>
+        Your login email is managed by your account and cannot be changed here.
+      </p>
 
       <div className="font-semibold text-sm mb-1.5">Home address</div>
       <input
@@ -2284,8 +6042,14 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-5"
       />
 
+      {saveError && (
+        <div className="text-sm mb-3" style={{ color: "#B42318" }}>
+          {saveError}
+        </div>
+      )}
+
       <button disabled={!canSave} onClick={save} className="amr-btn-primary w-full py-3 rounded-md">
-        Save Profile
+        {saving ? "Saving..." : "Save Profile"}
       </button>
     </div>
   );
@@ -2296,7 +6060,7 @@ function ReunionStoryScreen({ story, onBack }) {
   // Public feed stories carry heroName/ownerName/photoColor/timeLabel; the
   // private thank-you-message shape (from Profile) doesn't, and gets the
   // simpler original treatment.
-  const isPublicStory = !!story.heroName;
+  const isPublicStory = !!story.ownerName;
   return (
     <div>
       <ScreenHeader title="Reunion Story" onBack={onBack} />
@@ -2331,7 +6095,12 @@ function ReunionStoryScreen({ story, onBack }) {
                 — {story.ownerName}, {story.petName}'s owner
               </p>
               <p className="text-xs mt-1" style={{ color: "#6B6459" }}>
-                🏅 Hero: {story.heroName} · {story.timeLabel}
+                {story.heroName
+                  ? `🏅 Hero: ${story.heroName}`
+                  : story.reunionMethod === "SELF_FOUND"
+                    ? "Found by owner"
+                    : "Reunited"}
+                {story.timeLabel ? ` · ${story.timeLabel}` : ""}
               </p>
             </>
           ) : (
@@ -2447,7 +6216,7 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
       )}
       {isOwnPet && !isActive && (
         <button onClick={onReportMissing} className="amr-btn-primary w-full py-3 rounded-md">
-          Report Missing
+          Report Missing Now
         </button>
       )}
       {!isOwnPet && (
@@ -2461,10 +6230,115 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
 }
 
 function DetailsScreen({
-  pet, pin, mapRef, onMapClick, onUseCurrentLocation, coordsForPin,
+  pet, pin, mapRef, onMapClick, onUseCurrentLocation, missingGps, missingGpsStatus, coordsForPin,
   timeLabel, setTimeLabel, showCustomTime, setShowCustomTime, customTime, setCustomTime,
   canContinue, onBack, onContinue,
 }) {
+  const leafletMapRef = useRef(null);
+  const leafletMarkerRef = useRef(null);
+  const onMapClickRef = useRef(onMapClick);
+
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
+
+  useEffect(() => {
+    if (!mapRef.current || leafletMapRef.current) return;
+
+    const initialCenter =
+      pin?.lat != null && pin?.lng != null
+        ? [Number(pin.lat), Number(pin.lng)]
+        : [14.5995, 120.9842];
+
+    const map = L.map(mapRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView(initialCenter, pin ? 16 : 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    map.on("click", (event) => {
+      onMapClickRef.current({
+        lat: event.latlng.lat,
+        lng: event.latlng.lng,
+        isCurrent: false,
+      });
+    });
+
+    leafletMapRef.current = map;
+
+    // Leaflet sometimes initializes before the screen has its final width.
+    // Recalculate once the Report Missing screen has painted.
+    window.setTimeout(() => map.invalidateSize(), 0);
+
+    return () => {
+      map.remove();
+      leafletMapRef.current = null;
+      leafletMarkerRef.current = null;
+    };
+  }, [mapRef]);
+
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map || pin?.lat == null || pin?.lng == null) return;
+
+    const latLng = L.latLng(Number(pin.lat), Number(pin.lng));
+
+    const markerIcon = L.divIcon({
+      className: "amr-leaflet-pin",
+      html: `
+        <div style="
+          width: 28px;
+          height: 28px;
+          background: #E2572B;
+          border: 2px solid #20291F;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          box-shadow: 0 2px 5px rgba(32,41,31,0.28);
+          position: relative;
+        ">
+          <div style="
+            width: 8px;
+            height: 8px;
+            background: #F2E9D8;
+            border-radius: 50%;
+            position: absolute;
+            left: 8px;
+            top: 8px;
+          "></div>
+        </div>
+      `,
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+    });
+
+    if (!leafletMarkerRef.current) {
+      const marker = L.marker(latLng, {
+        icon: markerIcon,
+        draggable: true,
+      }).addTo(map);
+
+      marker.on("dragend", () => {
+        const moved = marker.getLatLng();
+        onMapClickRef.current({
+          lat: moved.lat,
+          lng: moved.lng,
+          isCurrent: false,
+        });
+      });
+
+      leafletMarkerRef.current = marker;
+    } else {
+      leafletMarkerRef.current.setLatLng(latLng);
+      leafletMarkerRef.current.setIcon(markerIcon);
+    }
+
+    map.setView(latLng, Math.max(map.getZoom(), 16));
+  }, [pin]);
+
   return (
     <div>
       <ScreenHeader title="Report Missing" onBack={onBack} />
@@ -2480,30 +6354,72 @@ function DetailsScreen({
         <MapPin size={16} />
         <span className="font-semibold text-sm">Last seen where?</span>
       </div>
-      <div ref={mapRef} onClick={onMapClick} className="amr-map relative w-full h-48 rounded-lg overflow-hidden mb-2">
-        {pin && (
-          <div className="absolute -translate-x-1/2 -translate-y-full" style={{ left: `${pin.xPct}%`, top: `${pin.yPct}%` }}>
-            <MapPin size={30} fill="#E2572B" color="#20291F" strokeWidth={1.5} />
-          </div>
-        )}
-        {!pin && (
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-medium" style={{ color: "#6B6459" }}>
-            Tap the map to drop a pin
-          </div>
-        )}
-      </div>
-      <div className="flex items-center justify-between mb-5">
-        <button onClick={onUseCurrentLocation} className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#2F6E62" }}>
+      <div
+        ref={mapRef}
+        className="relative w-full h-48 rounded-lg overflow-hidden mb-2"
+        style={{
+          border: "1px solid #D2C39E",
+          background: "#E8DFC7",
+          zIndex: 0,
+        }}
+        aria-label="Interactive map for selecting the pet's last-seen location"
+      />
+      {!pin && (
+        <div className="text-xs mb-2" style={{ color: "#6B6459" }}>
+          Tap the map to drop a pin, or use your current location.
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <button
+          onClick={onUseCurrentLocation}
+          disabled={missingGpsStatus === "locating"}
+          className="flex items-center gap-1.5 text-sm font-semibold"
+          style={{
+            color: "#2F6E62",
+            opacity: missingGpsStatus === "locating" ? 0.6 : 1,
+          }}
+        >
           <Navigation size={14} />
-          Use current location
+          {missingGpsStatus === "locating"
+            ? "Getting GPS..."
+            : missingGps
+              ? "Retry current location"
+              : "Use current location"}
         </button>
         {pin && (
-          <span className="text-xs" style={{ color: "#6B6459" }}>
+          <span className="text-xs text-right" style={{ color: "#6B6459" }}>
             {pin.isCurrent ? "Current location · " : ""}
             {coordsForPin(pin)}
           </span>
         )}
       </div>
+
+      {pin?.isCurrent && missingGps && (
+        <div
+          className="rounded-md px-3 py-2 mb-5 text-xs"
+          style={{
+            background:
+              Number(missingGps.accuracy) <= 100 ? "#E7F1EC" : "#FFF2D8",
+            color: "#4A453E",
+            border: "1px solid #D2C39E",
+          }}
+        >
+          <div className="font-semibold">
+            GPS accuracy: ±{Math.round(Number(missingGps.accuracy))} m
+          </div>
+          <div className="mt-1">
+            {Number(missingGps.accuracy) <= 50
+              ? "Strong location fix. Confirm the pin matches where your pet was last seen."
+              : Number(missingGps.accuracy) <= 100
+                ? "Usable location fix. Check the pin before continuing."
+                : Number(missingGps.accuracy) <= 200
+                  ? "Low accuracy. Check the pin carefully or retry GPS."
+                  : "Location is too imprecise to continue automatically. Retry GPS or move the pin manually."}
+          </div>
+        </div>
+      )}
+
+      {(!pin?.isCurrent || !missingGps) && <div className="mb-3" />}
 
       <div className="font-semibold text-sm mb-2">When did you last see {pet.name}?</div>
       <div className="flex flex-wrap gap-2 mb-2">
@@ -2539,7 +6455,7 @@ function DetailsScreen({
   );
 }
 
-function ReviewScreen({ pet, coords, timeLabel, radiusKm, setRadiusKm, onBack, onActivate }) {
+function ReviewScreen({ pet, coords, timeLabel, radiusKm, setRadiusKm, onBack, onActivate, submitting = false, error = null }) {
   return (
     <div>
       <ScreenHeader title="Review & Activate" onBack={onBack} />
@@ -2565,154 +6481,1472 @@ function ReviewScreen({ pet, coords, timeLabel, radiusKm, setRadiusKm, onBack, o
         </div>
       </div>
 
-      <div className="font-semibold text-sm mb-2">Alert radius</div>
-      <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
-        Verified users inside this radius will be notified immediately.
-      </p>
-      <div className="flex gap-2 mb-5">
-        {RADIUS_OPTIONS.map((km) => (
-          <button
-            key={km}
-            onClick={() => setRadiusKm(km)}
-            className={`amr-chip flex-1 py-2 rounded-md text-sm ${radiusKm === km ? "amr-chip-active" : ""}`}
-          >
-            {km} km
-          </button>
-        ))}
+      <div className="font-semibold text-sm mb-2">Community alert radius</div>
+      <div className="amr-card p-3 mb-5 text-sm" style={{ color: "#4A453E" }}>
+        <div><strong>Now:</strong> 1 km</div>
+        <div><strong>After 24 hours:</strong> 3 km</div>
+        <div><strong>After 3 days:</strong> 5 km</div>
+        <div className="text-xs mt-2" style={{ color: "#7A7268" }}>
+          REunited expands the community alert automatically while your pet remains missing.
+        </div>
       </div>
 
-      <button onClick={onActivate} className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2">
+            {error && (
+        <div
+          className="rounded-md p-3 mb-3 text-sm"
+          style={{
+            background: "#FCE8E3",
+            color: "#B9382B",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+<button onClick={onActivate} disabled={submitting} className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2">
         <Radio size={16} />
-        Activate Search
+        {submitting ? "Activating..." : "Activate Missing Alert"}
       </button>
       <p className="text-xs text-center mt-2" style={{ color: "#6B6459" }}>
-        This immediately starts alerting nearby verified users.
+        Your missing-pet alert activates immediately. No admin approval is required.
       </p>
     </div>
   );
 }
 
-function ActiveScreen({ pet, radiusKm, onDone, onViewTrail }) {
+const REUNITED_SIGHTING_TOOLTIP_STYLE_ID = "reunited-sighting-tooltip-style";
+
+function ensureReunitedSightingTooltipStyle() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(REUNITED_SIGHTING_TOOLTIP_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = REUNITED_SIGHTING_TOOLTIP_STYLE_ID;
+  style.textContent = `
+    .reunited-sighting-number.leaflet-tooltip {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      color: #F2E9D8;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0;
+      pointer-events: none;
+    }
+
+    .reunited-sighting-number.leaflet-tooltip::before {
+      display: none;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function ActiveScreen({
+  pet,
+  activatedAt,
+  lastSeenLatitude,
+  lastSeenLongitude,
+  sightings,
+  potentialMatches,
+  potentialMatchesLoading,
+  potentialMatchSavingId,
+  focusedPotentialSightingId,
+  onReviewPotentialMatch,
+  onDone,
+  onViewTrail,
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  const activeMapContainerRef = useRef(null);
+  const activeLeafletMapRef = useRef(null);
+  const activeMarkerRef = useRef(null);
+  const activeRadiusCircleRef = useRef(null);
+
+  useEffect(() => {
+    if (
+      !focusedPotentialSightingId ||
+      potentialMatchesLoading ||
+      !Array.isArray(potentialMatches)
+    ) {
+      return;
+    }
+
+    const target = document.getElementById(
+      `potential-match-${focusedPotentialSightingId}`,
+    );
+
+    if (target) {
+      window.setTimeout(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 120);
+    }
+  }, [
+    focusedPotentialSightingId,
+    potentialMatchesLoading,
+    potentialMatches,
+  ]);
+  const activeSightingLayerRef = useRef(null);
+
+  useEffect(() => {
+    ensureReunitedSightingTooltipStyle();
+    const timer = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const startedAt =
+    activatedAt instanceof Date && !Number.isNaN(activatedAt.getTime())
+      ? activatedAt.getTime()
+      : now;
+
+  const ageMs = Math.max(0, now - startedAt);
+  const ageHours = ageMs / (60 * 60 * 1000);
+
+  const currentRadiusKm =
+    ageHours >= 72 ? 5 : ageHours >= 24 ? 3 : 1;
+
+
+  useEffect(() => {
+    const lat = Number(lastSeenLatitude);
+    const lng = Number(lastSeenLongitude);
+
+    if (
+      !activeMapContainerRef.current ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      (lat === 0 && lng === 0)
+    ) {
+      return;
+    }
+
+    if (!activeLeafletMapRef.current) {
+      const map = L.map(activeMapContainerRef.current).setView([lat, lng], 14);
+
+      // Sightings always render above the radius circle and the orange
+      // last-seen marker. A dedicated pane avoids browser/Leaflet layer-order
+      // differences hiding valid sighting markers.
+      const sightingPane = map.createPane("reunitedSightingsPane");
+      sightingPane.style.zIndex = "750";
+      sightingPane.style.pointerEvents = "auto";
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      const pinIcon = L.divIcon({
+        className: "",
+        html: `<div style="width:28px;height:28px;border-radius:50% 50% 50% 0;background:#E2572B;border:3px solid #F2E9D8;box-shadow:0 2px 7px rgba(32,41,31,.35);transform:rotate(-45deg)"><div style="width:8px;height:8px;border-radius:50%;background:#F2E9D8;margin:7px"></div></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+      });
+
+      activeMarkerRef.current = L.marker([lat, lng], {
+        icon: pinIcon,
+        interactive: false,
+      }).addTo(map);
+
+      activeRadiusCircleRef.current = L.circle([lat, lng], {
+        radius: currentRadiusKm * 1000,
+        color: "#2F6E62",
+        weight: 2,
+        fillColor: "#2F6E62",
+        fillOpacity: 0.12,
+      }).addTo(map);
+
+      map.fitBounds(activeRadiusCircleRef.current.getBounds(), { padding: [20, 20] });
+      activeLeafletMapRef.current = map;
+      window.setTimeout(() => map.invalidateSize(), 0);
+    } else {
+      activeMarkerRef.current?.setLatLng([lat, lng]);
+      activeRadiusCircleRef.current?.setLatLng([lat, lng]);
+      activeRadiusCircleRef.current?.setRadius(currentRadiusKm * 1000);
+      activeLeafletMapRef.current.fitBounds(
+        activeRadiusCircleRef.current.getBounds(),
+        { padding: [20, 20] },
+      );
+    }
+  }, [lastSeenLatitude, lastSeenLongitude, currentRadiusKm]);
+
+  useEffect(() => {
+    const map = activeLeafletMapRef.current;
+    if (!map) return;
+
+    if (activeSightingLayerRef.current) {
+      activeSightingLayerRef.current.clearLayers();
+    } else {
+      activeSightingLayerRef.current = L.layerGroup().addTo(map);
+    }
+
+    const validSightings = (Array.isArray(sightings) ? sightings : []).filter((s) => {
+      const lat = Number(s.captureLat);
+      const lng = Number(s.captureLng);
+      const ownerVerdict = String(s.ownerVerdict || "").toUpperCase();
+      const confidence = String(s.confidence || "").toUpperCase();
+
+      return (
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        ownerVerdict !== "NOT_MY_PET" &&
+        confidence !== "REJECTED"
+      );
+    });
+
+    const lastSeenLat = Number(lastSeenLatitude);
+    const lastSeenLng = Number(lastSeenLongitude);
+    const lastSeenPoint =
+      Number.isFinite(lastSeenLat) && Number.isFinite(lastSeenLng)
+        ? L.latLng(lastSeenLat, lastSeenLng)
+        : null;
+
+    validSightings.forEach((sighting, index) => {
+      const lat = Number(sighting.captureLat);
+      const lng = Number(sighting.captureLng);
+      const label = sighting.reporterName || `Sighting ${index + 1}`;
+      const truePoint = L.latLng(lat, lng);
+
+      // If the sighting is extremely close to the original last-seen point,
+      // keep the true GPS coordinate but display the green marker slightly
+      // beside it so the orange pin does not cover it.
+      const overlapsLastSeen =
+        lastSeenPoint != null &&
+        lastSeenPoint.distanceTo(truePoint) < 35;
+
+      let displayPoint = truePoint;
+
+      if (overlapsLastSeen) {
+        const angle = (index * 55 + 35) * (Math.PI / 180);
+        const visualOffsetMeters = 55;
+        const latitudeOffset =
+          (visualOffsetMeters * Math.cos(angle)) / 111320;
+        const longitudeScale =
+          Math.max(0.15, Math.cos((lat * Math.PI) / 180));
+        const longitudeOffset =
+          (visualOffsetMeters * Math.sin(angle)) /
+          (111320 * longitudeScale);
+
+        displayPoint = L.latLng(
+          lat + latitudeOffset,
+          lng + longitudeOffset,
+        );
+
+        // Connector line shows that the visible badge represents the exact
+        // GPS point at the end nearest the orange last-seen pin.
+        L.polyline([truePoint, displayPoint], {
+          color: "#2F6E62",
+          weight: 2,
+          opacity: 0.9,
+          dashArray: "4 4",
+          interactive: false,
+          pane: "reunitedSightingsPane",
+        }).addTo(activeSightingLayerRef.current);
+
+        // Small dot preserves the exact GPS point on the map.
+        L.circleMarker(truePoint, {
+          radius: 4,
+          color: "#F2E9D8",
+          weight: 2,
+          fillColor: "#2F6E62",
+          fillOpacity: 1,
+          interactive: false,
+          pane: "reunitedSightingsPane",
+        }).addTo(activeSightingLayerRef.current);
+      }
+
+      const escapePopupHtml = (value) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+
+      const reporterName = escapePopupHtml(
+        publicDisplayName(sighting.reporterName || `Sighting ${index + 1}`),
+      );
+      const timeLabel = escapePopupHtml(
+        sighting.timeLabel || "Time not available",
+      );
+      const confidence = escapePopupHtml(
+        sighting.confidence || "PENDING",
+      );
+      const directionSignal = Array.isArray(sighting.signals)
+        ? sighting.signals.find((signal) =>
+            String(signal || "").toLowerCase().startsWith("direction:"),
+          )
+        : null;
+      const direction = directionSignal
+        ? escapePopupHtml(
+            String(directionSignal).replace(/^direction:\s*/i, ""),
+          )
+        : "Not provided";
+      const description = escapePopupHtml(
+        sighting.comment ||
+          (Array.isArray(sighting.signals)
+            ? sighting.signals.find(
+                (signal) =>
+                  signal &&
+                  !String(signal).toLowerCase().startsWith("direction:"),
+              )
+            : "") ||
+          "No additional details",
+      );
+
+      const popupButtonId = `reunited-view-sighting-${String(
+        sighting.backendSightingId || sighting.id || index,
+      ).replace(/[^a-zA-Z0-9_-]/g, "")}-${index}`;
+
+      const navigateUrl =
+        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(lat)},${encodeURIComponent(lng)}`;
+
+      const popupHtml = `
+        <div style="min-width:220px;font-family:inherit;color:#20291F;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;">
+            Sighting ${index + 1}
+          </div>
+          <div style="font-size:12px;margin-bottom:3px;">
+            <strong>Reporter:</strong> ${reporterName}
+          </div>
+          <div style="font-size:12px;margin-bottom:3px;">
+            <strong>When:</strong> ${timeLabel}
+          </div>
+          <div style="font-size:12px;margin-bottom:3px;">
+            <strong>Confidence:</strong> ${confidence}
+          </div>
+          ${
+            String(sighting.ownerVerdict || "").toUpperCase() === "LIKELY_MATCH"
+              ? '<div style="font-size:12px;font-weight:700;color:#2F6E62;margin-bottom:5px;">✓ Owner marked as Likely Match</div>'
+              : ""
+          }
+          <div style="font-size:12px;margin-bottom:3px;">
+            <strong>Direction:</strong> ${direction}
+          </div>
+          <div style="font-size:12px;margin-bottom:8px;">
+            <strong>Details:</strong> ${description}
+          </div>
+          <div style="font-size:11px;color:#6B6459;margin-bottom:9px;">
+            GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+          </div>
+          ${
+            overlapsLastSeen
+              ? '<div style="font-size:10px;color:#6B6459;margin-bottom:8px;">Marker is offset slightly for visibility; the dashed line points to the exact GPS location.</div>'
+              : ""
+          }
+          <button
+            id="${popupButtonId}"
+            type="button"
+            style="
+              width:100%;
+              border:1px solid #20291F;
+              border-radius:6px;
+              background:#2F6E62;
+              color:#F2E9D8;
+              font-weight:700;
+              font-size:12px;
+              padding:8px 10px;
+              margin-bottom:6px;
+              cursor:pointer;
+            "
+          >
+            View Sighting
+          </button>
+          <a
+            href="${navigateUrl}"
+            target="_blank"
+            rel="noreferrer"
+            style="
+              display:block;
+              width:100%;
+              box-sizing:border-box;
+              border:1px solid #20291F;
+              border-radius:6px;
+              background:#F2E9D8;
+              color:#20291F;
+              font-weight:700;
+              font-size:12px;
+              padding:8px 10px;
+              text-align:center;
+              text-decoration:none;
+            "
+          >
+            Navigate to Sighting
+          </a>
+        </div>
+      `;
+
+      const isVerified =
+        String(sighting.ownerVerdict || "").toUpperCase() === "LIKELY_MATCH";
+
+      const sightingPoint = L.circleMarker(displayPoint, {
+        radius: isVerified ? 14 : 11,
+        color: "#F2E9D8",
+        weight: isVerified ? 4 : 3,
+        fillColor: "#2F6E62",
+        fillOpacity: 1,
+        pane: "reunitedSightingsPane",
+      })
+        .bindPopup(popupHtml, {
+          maxWidth: 280,
+          closeButton: true,
+        })
+        .bindTooltip(String(index + 1), {
+          permanent: true,
+          direction: "center",
+          className: "reunited-sighting-number",
+          opacity: 1,
+        });
+
+      sightingPoint.on("popupopen", () => {
+        window.setTimeout(() => {
+          const viewButton = document.getElementById(popupButtonId);
+          if (!viewButton) return;
+
+          viewButton.onclick = (event) => {
+            event.preventDefault();
+            sightingPoint.closePopup();
+            onViewTrail();
+          };
+        }, 0);
+      });
+
+      sightingPoint.addTo(activeSightingLayerRef.current);
+    });
+  }, [
+    sightings,
+    lastSeenLatitude,
+    lastSeenLongitude,
+    currentRadiusKm,
+    onViewTrail,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      activeLeafletMapRef.current?.remove();
+      activeLeafletMapRef.current = null;
+      activeMarkerRef.current = null;
+      activeRadiusCircleRef.current = null;
+      activeSightingLayerRef.current = null;
+    };
+  }, []);
+
+  const nextRadiusKm =
+    currentRadiusKm === 1 ? 3 : currentRadiusKm === 3 ? 5 : null;
+
+  const nextThresholdHours =
+    currentRadiusKm === 1 ? 24 : currentRadiusKm === 3 ? 72 : null;
+
+  const hoursUntilNext =
+    nextThresholdHours == null
+      ? null
+      : Math.max(0, nextThresholdHours - ageHours);
+
+  const nextExpansionLabel =
+    hoursUntilNext == null
+      ? null
+      : hoursUntilNext >= 1
+        ? `${Math.ceil(hoursUntilNext)} hour${Math.ceil(hoursUntilNext) === 1 ? "" : "s"}`
+        : `${Math.max(1, Math.ceil(hoursUntilNext * 60))} minute${Math.max(1, Math.ceil(hoursUntilNext * 60)) === 1 ? "" : "s"}`;
+
   return (
     <div className="text-center pt-6">
       <div className="flex justify-center mb-4">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#2F6E62" }}>
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: "#2F6E62" }}
+        >
           <CheckCircle2 size={32} color="#F2E9D8" />
         </div>
       </div>
-      <div className="amr-display text-4xl mb-1" style={{ color: "#2F6E62" }}>SEARCH ACTIVATED</div>
+
+      <div
+        className="amr-display text-4xl mb-1"
+        style={{ color: "#2F6E62" }}
+      >
+        SEARCH ACTIVATED
+      </div>
+
       <p className="text-sm mb-6" style={{ color: "#6B6459" }}>
-        We're alerting verified neighbors within {radiusKm} km of {pet.name}'s last known location.
+        {pet.name}'s missing-pet report is ACTIVE and nearby community alerts have started.
       </p>
 
       <div className="amr-panel rounded-lg p-5 mb-4 text-left">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2.5 h-2.5 rounded-full amr-pulse" style={{ background: "#2F6E62" }} />
+        <div className="flex items-center gap-2 mb-4">
+          <span
+            className="w-2.5 h-2.5 rounded-full amr-pulse"
+            style={{ background: "#2F6E62" }}
+          />
           <span className="font-semibold text-sm">Case status: ACTIVE</span>
         </div>
-        <p className="text-sm" style={{ color: "#6B6459" }}>
-          You'll get a notification the moment a credible sighting comes in.
-          You can follow {pet.name}'s sighting trail on the map as it grows.
+
+        <div
+          className="rounded-lg p-4 mb-4 text-center"
+          style={{ background: "#F7F0E3", border: "1px solid #CBBFA0" }}
+        >
+          <div className="text-xs font-semibold mb-1" style={{ color: "#6B6459" }}>
+            CURRENT SEARCH RADIUS
+          </div>
+          <div className="amr-display text-4xl" style={{ color: "#E2572B" }}>
+            {currentRadiusKm} KM
+          </div>
+          <p className="text-xs mt-1" style={{ color: "#6B6459" }}>
+            Verified nearby users within {currentRadiusKm} km are being alerted.
+          </p>
+        </div>
+
+        {Number.isFinite(Number(lastSeenLatitude)) &&
+          Number.isFinite(Number(lastSeenLongitude)) &&
+          !(Number(lastSeenLatitude) === 0 && Number(lastSeenLongitude) === 0) && (
+            <div className="mb-4">
+              <div className="font-semibold text-sm mb-2">Active search area</div>
+              <div
+                ref={activeMapContainerRef}
+                className="w-full h-64 rounded-lg overflow-hidden"
+                style={{ border: "1px solid #D2C39E", background: "#E8DFC7", zIndex: 0 }}
+                aria-label={`Map showing ${pet.name}'s last-seen location and ${currentRadiusKm} kilometer alert radius`}
+              />
+              <div className="text-xs mt-2" style={{ color: "#6B6459" }}>
+                Orange pin: last-seen location · Green pins: active sightings · Larger green pin: owner-verified Likely Match · Rejected sightings stay in history but are hidden from the active map · Circle: current {currentRadiusKm} km alert area
+              </div>
+              <div className="text-xs mt-1 font-semibold" style={{ color: "#2F6E62" }}>
+                {(Array.isArray(sightings) ? sightings : []).filter((s) => {
+                  const lat = Number(s.captureLat);
+                  const lng = Number(s.captureLng);
+                  const ownerVerdict = String(s.ownerVerdict || "").toUpperCase();
+                  const confidence = String(s.confidence || "").toUpperCase();
+                  return (
+                    Number.isFinite(lat) &&
+                    Number.isFinite(lng) &&
+                    ownerVerdict !== "NOT_MY_PET" &&
+                    confidence !== "REJECTED"
+                  );
+                }).length} active sighting pin{(Array.isArray(sightings) ? sightings : []).filter((s) => {
+                  const lat = Number(s.captureLat);
+                  const lng = Number(s.captureLng);
+                  const ownerVerdict = String(s.ownerVerdict || "").toUpperCase();
+                  const confidence = String(s.confidence || "").toUpperCase();
+                  return (
+                    Number.isFinite(lat) &&
+                    Number.isFinite(lng) &&
+                    ownerVerdict !== "NOT_MY_PET" &&
+                    confidence !== "REJECTED"
+                  );
+                }).length === 1 ? "" : "s"} mapped
+              </div>
+            </div>
+          )}
+
+        <div className="flex items-center gap-2 mb-2">
+          {[1, 3, 5].map((radius) => {
+            const reached = currentRadiusKm >= radius;
+            return (
+              <Fragment key={radius}>
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  style={{
+                    background: reached ? "#2F6E62" : "#DED2B4",
+                    color: reached ? "#F2E9D8" : "#6B6459",
+                    border: "1px solid #20291F",
+                  }}
+                >
+                  {radius}
+                </div>
+                {radius !== 5 && (
+                  <div
+                    className="h-0.5 flex-1"
+                    style={{ background: currentRadiusKm > radius ? "#2F6E62" : "#CBBFA0" }}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-between text-xs mb-4" style={{ color: "#6B6459" }}>
+          <span>Now</span>
+          <span>24 hrs</span>
+          <span>72 hrs</span>
+        </div>
+
+        {nextRadiusKm ? (
+          <div className="text-sm" style={{ color: "#6B6459" }}>
+            <strong>Next:</strong> expand to {nextRadiusKm} km in approximately {nextExpansionLabel}.
+          </div>
+        ) : (
+          <div className="text-sm" style={{ color: "#2F6E62" }}>
+            <strong>Maximum alert radius reached:</strong> 5 km.
+          </div>
+        )}
+
+        <p className="text-xs mt-3" style={{ color: "#7A7268" }}>
+          Expansion happens automatically while the report remains ACTIVE.
         </p>
       </div>
 
-      <button onClick={onViewTrail} className="amr-btn-teal w-full py-3 rounded-md mb-2">
+      <div className="amr-panel rounded-lg p-4 mb-4 text-left">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div>
+            <div className="font-semibold text-sm">
+              Potential Sighting Matches
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
+              Sightings reported for another missing pet that happened near {pet.name}'s active search.
+            </div>
+          </div>
+          {potentialMatchesLoading && (
+            <span className="text-xs" style={{ color: "#6B6459" }}>
+              Loading…
+            </span>
+          )}
+        </div>
+
+        {!potentialMatchesLoading &&
+          (!Array.isArray(potentialMatches) || potentialMatches.length === 0) && (
+            <div
+              className="rounded-md p-3 text-sm"
+              style={{ background: "#F7F0E3", color: "#6B6459" }}
+            >
+              No potential cross-pet sighting matches yet.
+            </div>
+          )}
+
+        <div className="space-y-3">
+          {(Array.isArray(potentialMatches) ? potentialMatches : []).map(
+            (match) => {
+              const isPending = match.status === "PENDING";
+              const isVerified = match.status === "VERIFIED";
+              const isRejected = match.status === "REJECTED";
+              const isSaving =
+                Number(potentialMatchSavingId) === Number(match.sightingId);
+              const hasGps =
+                Number.isFinite(Number(match.latitude)) &&
+                Number.isFinite(Number(match.longitude));
+
+              const navigationUrl = hasGps
+                ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                    Number(match.latitude),
+                  )},${encodeURIComponent(Number(match.longitude))}`
+                : null;
+
+              return (
+                <div
+                  id={`potential-match-${match.sightingId}`}
+                  key={`${match.matchId}-${match.sightingId}`}
+                  className="rounded-lg p-4"
+                  style={{
+                    border:
+                      Number(focusedPotentialSightingId) === Number(match.sightingId)
+                        ? "3px solid #E2572B"
+                        : isVerified
+                          ? "2px solid #2F6E62"
+                          : "1px solid #D2C39E",
+                    background:
+                      Number(focusedPotentialSightingId) === Number(match.sightingId)
+                        ? "#FFF4E8"
+                        : isRejected
+                          ? "#F3EEE5"
+                          : "#FFFDF8",
+                    opacity: isRejected ? 0.78 : 1,
+                    boxShadow:
+                      Number(focusedPotentialSightingId) === Number(match.sightingId)
+                        ? "0 0 0 3px rgba(226, 87, 43, 0.12)"
+                        : "none",
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div
+                        className="text-xs font-bold uppercase tracking-wide"
+                        style={{ color: "#E2572B" }}
+                      >
+                        Potential Sighting Match
+                      </div>
+                      <div className="font-semibold mt-1">
+                        Reported for {match.originallyReportedPet}
+                      </div>
+                    </div>
+
+                    <span
+                      className="text-xs font-bold px-2 py-1 rounded-full"
+                      style={{
+                        background: isVerified
+                          ? "#DCEAE5"
+                          : isRejected
+                            ? "#E8E0D4"
+                            : "#F6E7C9",
+                        color: isVerified
+                          ? "#2F6E62"
+                          : isRejected
+                            ? "#6B6459"
+                            : "#8A5B13",
+                      }}
+                    >
+                      {isVerified
+                        ? "LIKELY MATCH"
+                        : isRejected
+                          ? "NOT MY PET"
+                          : "REVIEW NEEDED"}
+                    </span>
+                  </div>
+
+                  {match.photos?.[0] && (
+                    <img
+                      src={match.photos[0]}
+                      alt="Potential sighting"
+                      className="w-full h-44 object-cover rounded-lg mb-3"
+                      style={{ border: "1px solid #D2C39E" }}
+                    />
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                    <div>
+                      <span style={{ color: "#6B6459" }}>Reporter:</span>{" "}
+                      <strong>{match.reporterName}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "#6B6459" }}>When:</span>{" "}
+                      <strong>{match.timeLabel}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "#6B6459" }}>Distance:</span>{" "}
+                      <strong>
+                        {Number.isFinite(match.distanceMeters)
+                          ? match.distanceMeters < 1000
+                            ? `${Math.round(match.distanceMeters)} m`
+                            : `${(match.distanceMeters / 1000).toFixed(2)} km`
+                          : "Unknown"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "#6B6459" }}>Direction:</span>{" "}
+                      <strong>{match.direction || "Not provided"}</strong>
+                    </div>
+                  </div>
+
+                  {match.description && (
+                    <div
+                      className="rounded-md p-3 text-sm mb-3"
+                      style={{ background: "#F7F0E3" }}
+                    >
+                      {match.description}
+                    </div>
+                  )}
+
+                  <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
+                    This sighting stays attached to its original missing-pet report. Your review only records whether it could be your pet.
+                  </div>
+
+                  {navigationUrl && (
+                    <a
+                      href={navigationUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-center text-sm font-semibold py-2 rounded-md mb-3"
+                      style={{
+                        border: "1px solid #20291F",
+                        color: "#20291F",
+                        background: "#F2E9D8",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Navigate to sighting
+                    </a>
+                  )}
+
+                  {isPending ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() =>
+                          onReviewPotentialMatch(
+                            match.sightingId,
+                            "LIKELY_MATCH",
+                          )
+                        }
+                        className="amr-btn-teal py-2.5 rounded-md text-sm"
+                        style={{ opacity: isSaving ? 0.6 : 1 }}
+                      >
+                        {isSaving ? "Saving…" : "Likely Match"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() =>
+                          onReviewPotentialMatch(
+                            match.sightingId,
+                            "NOT_MY_PET",
+                          )
+                        }
+                        className="amr-btn-secondary py-2.5 rounded-md text-sm"
+                        style={{ opacity: isSaving ? 0.6 : 1 }}
+                      >
+                        Not My Pet
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="text-sm font-semibold"
+                      style={{
+                        color: isVerified ? "#2F6E62" : "#6B6459",
+                      }}
+                    >
+                      {isVerified
+                        ? "✓ You marked this sighting as a Likely Match."
+                        : "This sighting was reviewed as Not My Pet."}
+                    </div>
+                  )}
+                </div>
+              );
+            },
+          )}
+        </div>
+      </div>
+
+      <button
+        onClick={onViewTrail}
+        className="amr-btn-teal w-full py-3 rounded-md mb-2"
+      >
         View sighting trail
       </button>
-      <button onClick={onDone} className="amr-btn-secondary w-full py-3 rounded-md">
+
+      <button
+        onClick={onDone}
+        className="amr-btn-secondary w-full py-3 rounded-md"
+      >
         Back to my pets
       </button>
     </div>
   );
 }
 
-function TrailScreen({ pet, sightings, onBack, onReportSighting, onReunite, onMessage }) {
-  const [enlargedSighting, setEnlargedSighting] = useState(null);
+function PendingReviewScreen({ pet, onDone }) {
+  return (
+    <div className="text-center pt-6">
+      <div className="flex justify-center mb-4">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ background: "#CBBFA0" }}
+        >
+          <CheckCircle2 size={32} color="#20291F" />
+        </div>
+      </div>
+
+      <div
+        className="amr-display text-4xl mb-1"
+        style={{ color: "#20291F" }}
+      >
+        REPORT SUBMITTED
+      </div>
+
+      <p
+        className="text-sm mb-6"
+        style={{ color: "#6B6459" }}
+      >
+        {pet.name}'s missing report has been submitted
+        for review.
+      </p>
+
+      <div className="amr-panel rounded-lg p-5 mb-4 text-left">
+        <div className="flex items-center gap-2 mb-3">
+          <span
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ background: "#C28A2C" }}
+          />
+          <span className="font-semibold text-sm">
+            Case status: PENDING REVIEW
+          </span>
+        </div>
+
+        <p
+          className="text-sm"
+          style={{ color: "#6B6459" }}
+        >
+          REunited staff will review the report before it
+          appears in nearby community alerts. You will not
+          see this case as an active community alert until
+          it is approved.
+        </p>
+      </div>
+
+      <button
+        onClick={onDone}
+        className="amr-btn-secondary w-full py-3 rounded-md"
+      >
+        Back to my pets
+      </button>
+    </div>
+  );
+}
+
+function isRealPhoto(value) {
+  return (
+    typeof value === "string" &&
+    (
+      value.startsWith("https://") ||
+      value.startsWith("http://") ||
+      value.startsWith("data:image/") ||
+      value.startsWith("blob:")
+    )
+  );
+}
+function TrailScreen({
+  pet,
+  sightings,
+  isOwnPet,
+  onBack,
+  onReportSighting,
+  onReunite,
+  onVerifySighting,
+  onReportAbuse,
+  onMessage,
+}) {
+  const [enlargedSighting, setEnlargedSighting] =
+    useState(null);
+  const [abuseTarget, setAbuseTarget] = useState(null);
+  const [abuseReason, setAbuseReason] = useState("FALSE_SIGHTING");
+  const [abuseDetails, setAbuseDetails] = useState("");
+  const [abuseSubmitting, setAbuseSubmitting] = useState(false);
+  const [abuseError, setAbuseError] = useState("");
+  const [abuseSuccessId, setAbuseSuccessId] = useState(null);
+  const notificationTargetRef = useRef(null);
+
   const sorted = [...sightings].reverse();
+
+  useEffect(() => {
+    const target = sightings.find(
+      (sighting) => sighting.isNotificationTarget,
+    );
+
+    if (!target || !notificationTargetRef.current) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      notificationTargetRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [sightings]);
+
+  async function submitAbuseReport() {
+    if (!abuseTarget || abuseSubmitting) {
+      return;
+    }
+
+    try {
+      setAbuseSubmitting(true);
+      setAbuseError("");
+
+      await onReportAbuse(
+        abuseTarget.id,
+        abuseReason,
+        abuseDetails,
+      );
+
+      setAbuseSuccessId(abuseTarget.id);
+      setAbuseTarget(null);
+      setAbuseReason("FALSE_SIGHTING");
+      setAbuseDetails("");
+    } catch (error) {
+      setAbuseError(
+        error?.message || "Unable to report this sighting for review.",
+      );
+    } finally {
+      setAbuseSubmitting(false);
+    }
+  }
+
   return (
     <div>
-      <ScreenHeader title={`${pet.name}'s Sighting Trail`} onBack={onBack} />
-      <div className="flex items-center gap-2 mb-4 text-sm" style={{ color: "#6B6459" }}>
-        <span className="w-2 h-2 rounded-full amr-pulse" style={{ background: "#2F6E62" }} />
-        {sightings.length} sighting{sightings.length === 1 ? "" : "s"} reported so far
+      <ScreenHeader
+        title={`${pet.name}'s Sighting Trail`}
+        onBack={onBack}
+      />
+
+      <div
+        className="flex items-center gap-2 mb-4 text-sm"
+        style={{ color: "#6B6459" }}
+      >
+        <span
+          className="w-2 h-2 rounded-full amr-pulse"
+          style={{ background: "#2F6E62" }}
+        />
+
+        {sightings.length} sighting
+        {sightings.length === 1 ? "" : "s"} reported
+        so far
       </div>
 
       <div className="flex flex-col gap-3 mb-5">
         {sorted.length === 0 && (
-          <p className="text-sm italic" style={{ color: "#6B6459" }}>
-            No sightings yet. They'll appear here as they come in.
+          <p
+            className="text-sm italic"
+            style={{ color: "#6B6459" }}
+          >
+            No sightings yet. They'll appear here as
+            they come in.
           </p>
         )}
-        {sorted.map((s) => (
-          <div key={s.id} className="amr-panel rounded-lg p-3.5">
-            <div className="flex items-start gap-3 mb-2">
-              <button
-                onClick={() => (s.photos?.length > 0 || s.photoColor) && setEnlargedSighting(s)}
-                className="relative w-14 h-14 rounded-md flex items-center justify-center shrink-0"
-                style={{
-                  background: s.photos?.[0] || s.photoColor || "#CBBFA0",
-                  cursor: s.photos?.length > 0 || s.photoColor ? "pointer" : "default",
-                }}
-                aria-label="View photo"
-              >
-                <HeartMark size={22} color="#F2E9D8" />
-                {s.photos?.length > 1 && (
-                  <span
-                    className="absolute -bottom-1 -right-1 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"
-                    style={{ background: "#20291F", color: "#F2E9D8" }}
-                  >
-                    +{s.photos.length - 1}
-                  </span>
-                )}
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-semibold text-sm">{s.reporterName}</div>
-                    <div className="text-xs" style={{ color: "#6B6459" }}>
-                      {s.distanceLabel} · {s.timeLabel}
+
+        {sorted.map((s) => {
+          const firstPhoto =
+            s.photos?.[0] ||
+            s.photoUrl ||
+            s.photoColor ||
+            null;
+
+          const hasPhoto = Boolean(firstPhoto);
+          const realPhoto =
+            isRealPhoto(firstPhoto);
+
+          return (
+            <div
+              key={s.id}
+              ref={
+                s.isNotificationTarget
+                  ? notificationTargetRef
+                  : null
+              }
+              className="amr-panel rounded-lg p-3.5"
+              style={
+                s.isNotificationTarget
+                  ? {
+                      border: "3px solid #E2572B",
+                      boxShadow: "0 0 0 4px rgba(226, 87, 43, 0.12)",
+                    }
+                  : undefined
+              }
+            >
+              {s.isNotificationTarget && (
+                <div
+                  className="text-xs font-semibold mb-2 flex items-center gap-1.5"
+                  style={{ color: "#E2572B" }}
+                >
+                  <Bell size={14} />
+                  Sighting from this notification
+                </div>
+              )}
+
+              <div className="flex items-start gap-3 mb-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    hasPhoto &&
+                    setEnlargedSighting(s)
+                  }
+                  className="relative w-14 h-14 rounded-md overflow-hidden flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      !realPhoto && firstPhoto
+                        ? firstPhoto
+                        : "#CBBFA0",
+
+                    cursor: hasPhoto
+                      ? "pointer"
+                      : "default",
+                  }}
+                  aria-label="View photo"
+                >
+                  {realPhoto ? (
+                    <img
+                      src={firstPhoto}
+                      alt={`Sighting of ${pet.name}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <HeartMark
+                      size={22}
+                      color="#F2E9D8"
+                    />
+                  )}
+
+                  {s.photos?.length > 1 && (
+                    <span
+                      className="absolute -bottom-0 -right-0 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "#20291F",
+                        color: "#F2E9D8",
+                      }}
+                    >
+                      +{s.photos.length - 1}
+                    </span>
+                  )}
+                </button>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-sm">
+                        {publicDisplayName(s.reporterName)}
+                      </div>
+
+                      <div
+                        className="text-xs"
+                        style={{
+                          color: "#6B6459",
+                        }}
+                      >
+                        {s.distanceLabel} ·{" "}
+                        {s.timeLabel}
+                      </div>
                     </div>
+
+                    <ConfidenceBadge
+                      level={s.confidence}
+                    />
                   </div>
-                  <ConfidenceBadge level={s.confidence} />
                 </div>
               </div>
+
+              {Array.isArray(s.signals) &&
+                s.signals.length > 0 && (
+                  <ul
+                    className="text-xs space-y-0.5 mb-3"
+                    style={{
+                      color: "#6B6459",
+                    }}
+                  >
+                    {s.signals.map(
+                      (sig, index) => (
+                        <li key={index}>
+                          · {sig}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
+
+              {s.comment && (
+                <div
+                  className="text-xs mb-3 p-2.5 rounded-md"
+                  style={{
+                    background: "#EDE3CD",
+                  }}
+                >
+                  <span
+                    className="font-semibold"
+                    style={{
+                      color: "#20291F",
+                    }}
+                  >
+                    💬 {publicDisplayName(s.reporterName)}:{" "}
+                  </span>
+
+                  <span
+                    style={{
+                      color: "#6B6459",
+                    }}
+                  >
+                    "{s.comment}"
+                  </span>
+                </div>
+              )}
+
+              {s.captureLat != null &&
+                s.captureLng != null && (
+                  <div className="mb-3">
+                    <div
+                      className="text-xs font-semibold mb-2 flex items-center gap-1.5"
+                      style={{ color: "#20291F" }}
+                    >
+                      <MapPin size={13} />
+                      Reported sighting location
+                    </div>
+
+                    <div
+                      className="text-xs mb-2"
+                      style={{ color: "#6B6459" }}
+                    >
+                      📍 {Number(s.captureLat).toFixed(6)}, {Number(s.captureLng).toFixed(6)}
+                    </div>
+
+                    <a
+                      href={`https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+                        Number(s.captureLat),
+                      )}&mlon=${encodeURIComponent(
+                        Number(s.captureLng),
+                      )}#map=18/${encodeURIComponent(
+                        Number(s.captureLat),
+                      )}/${encodeURIComponent(
+                        Number(s.captureLng),
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="amr-btn-secondary w-full py-1.5 rounded-md text-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Navigation size={13} />
+                      Open sighting location on map
+                    </a>
+
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                  Number(s.captureLat),
+                )},${encodeURIComponent(
+                  Number(s.captureLng),
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="amr-btn-secondary w-full py-2 rounded-md text-xs flex items-center justify-center gap-1.5 mt-2"
+              >
+                <Navigation size={13} />
+                Navigate to sighting
+              </a>
+                  </div>
+                )}
+
+              <div
+                className="rounded-md p-3 mb-3"
+                style={{
+                  background: "#F7F0E3",
+                  border: "1px solid #CBBFA0",
+                }}
+              >
+                <div className="text-xs font-semibold mb-1">
+                  Owner verification
+                </div>
+
+                {s.ownerVerdict === "LIKELY_MATCH" ? (
+                  <div className="text-xs font-semibold" style={{ color: "#2F6E62" }}>
+                    ✓ Marked as Likely Match
+                  </div>
+                ) : s.ownerVerdict === "NOT_MY_PET" ? (
+                  <div className="text-xs font-semibold" style={{ color: "#E2572B" }}>
+                    ✕ Marked as Not My Pet
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
+                      Does this sighting look like {pet.name}?
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onVerifySighting(s.id, "LIKELY_MATCH")}
+                        className="amr-btn-teal w-full py-2 rounded-md text-xs"
+                      >
+                        Likely Match
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onVerifySighting(s.id, "NOT_MY_PET")}
+                        className="amr-btn-secondary w-full py-2 rounded-md text-xs"
+                      >
+                        Not My Pet
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onMessage(s)}
+                className="amr-btn-secondary w-full py-1.5 rounded-md text-xs flex items-center justify-center gap-1.5"
+              >
+                <MessageCircle size={13} />
+                Message {publicDisplayName(s.reporterName)}
+              </button>
+
+              {isOwnPet && s.backendSightingId && (
+                <div className="mt-2">
+                  {abuseSuccessId === s.id ? (
+                    <div
+                      className="text-xs rounded-md px-3 py-2"
+                      style={{
+                        color: "#2F6E62",
+                        background: "#E5F0EB",
+                        border: "1px solid #2F6E62",
+                      }}
+                    >
+                      ✓ Report submitted to REunited for review. The sighting stays in the trail while moderation reviews it.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAbuseTarget(s);
+                        setAbuseReason("FALSE_SIGHTING");
+                        setAbuseDetails("");
+                        setAbuseError("");
+                      }}
+                      className="w-full py-1.5 rounded-md text-xs font-semibold"
+                      style={{
+                        border: "1px solid #A33A20",
+                        color: "#A33A20",
+                        background: "#FFF8F3",
+                      }}
+                    >
+                      Report suspicious sighting
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-            <ul className="text-xs space-y-0.5 mb-3" style={{ color: "#6B6459" }}>
-              {s.signals.map((sig, i) => (
-                <li key={i}>· {sig}</li>
-              ))}
-            </ul>
-            {s.comment && (
-              <div className="text-xs mb-3 p-2.5 rounded-md" style={{ background: "#EDE3CD" }}>
-                <span className="font-semibold" style={{ color: "#20291F" }}>💬 {s.reporterName}: </span>
-                <span style={{ color: "#6B6459" }}>"{s.comment}"</span>
+          );
+        })}
+      </div>
+
+      {abuseTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: "rgba(32, 41, 31, 0.58)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Report suspicious sighting"
+        >
+          <div
+            className="w-full max-w-md rounded-xl p-5"
+            style={{
+              background: "#FFFDF8",
+              border: "1px solid #20291F",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="font-semibold">Report suspicious sighting</div>
+                <div className="text-xs mt-1" style={{ color: "#6B6459" }}>
+                  Report the sighting from {publicDisplayName(abuseTarget.reporterName)} to REunited moderation. Reporting does not automatically remove the sighting or ban the member.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!abuseSubmitting) {
+                    setAbuseTarget(null);
+                    setAbuseError("");
+                  }
+                }}
+                className="text-lg leading-none px-2"
+                aria-label="Close"
+                disabled={abuseSubmitting}
+              >
+                ×
+              </button>
+            </div>
+
+            <label className="block text-xs font-semibold mb-1" htmlFor="abuse-reason">
+              Reason
+            </label>
+            <select
+              id="abuse-reason"
+              value={abuseReason}
+              onChange={(event) => setAbuseReason(event.target.value)}
+              className="w-full rounded-md px-3 py-2 text-sm mb-3"
+              style={{
+                border: "1px solid #CBBFA0",
+                background: "#FFFDF8",
+                color: "#20291F",
+              }}
+              disabled={abuseSubmitting}
+            >
+              <option value="FALSE_SIGHTING">False or fake sighting</option>
+              <option value="SPAM">Spam</option>
+              <option value="HARASSMENT">Harassment</option>
+              <option value="INAPPROPRIATE_CONTENT">Inappropriate content</option>
+              <option value="OTHER">Other</option>
+            </select>
+
+            <label className="block text-xs font-semibold mb-1" htmlFor="abuse-details">
+              Details (optional)
+            </label>
+            <textarea
+              id="abuse-details"
+              value={abuseDetails}
+              onChange={(event) => setAbuseDetails(event.target.value.slice(0, 1000))}
+              placeholder="Tell REunited why this sighting looks suspicious."
+              rows={4}
+              className="w-full rounded-md px-3 py-2 text-sm resize-none"
+              style={{
+                border: "1px solid #CBBFA0",
+                background: "#FFFDF8",
+                color: "#20291F",
+              }}
+              disabled={abuseSubmitting}
+            />
+            <div className="text-right text-xs mt-1" style={{ color: "#6B6459" }}>
+              {abuseDetails.length}/1000
+            </div>
+
+            {abuseError && (
+              <div
+                className="text-xs rounded-md px-3 py-2 mt-3"
+                style={{
+                  color: "#A33A20",
+                  background: "#F7E1D7",
+                  border: "1px solid #E2572B",
+                }}
+              >
+                {abuseError}
               </div>
             )}
-            <button
-              onClick={() => onMessage(s)}
-              className="amr-btn-secondary w-full py-1.5 rounded-md text-xs flex items-center justify-center gap-1.5"
-            >
-              <MessageCircle size={13} />
-              Message {s.reporterName}
-            </button>
+
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setAbuseTarget(null);
+                  setAbuseError("");
+                }}
+                className="amr-btn-secondary py-2.5 rounded-md text-sm"
+                disabled={abuseSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitAbuseReport}
+                className="amr-btn-primary py-2.5 rounded-md text-sm"
+                disabled={abuseSubmitting}
+                style={{ opacity: abuseSubmitting ? 0.65 : 1 }}
+              >
+                {abuseSubmitting ? "Submitting…" : "Submit report"}
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {enlargedSighting && (
         <PhotoLightbox
-          photos={enlargedSighting.photos?.length > 0 ? enlargedSighting.photos : [enlargedSighting.photoColor]}
-          title={enlargedSighting.reporterName}
+          photos={
+            enlargedSighting.photos?.length >
+            0
+              ? enlargedSighting.photos
+              : [
+                  enlargedSighting.photoUrl ||
+                    enlargedSighting.photoColor,
+                ].filter(Boolean)
+          }
+          title={publicDisplayName(enlargedSighting.reporterName)}
           subtitle={`${enlargedSighting.distanceLabel} · ${enlargedSighting.timeLabel}`}
-          onClose={() => setEnlargedSighting(null)}
+          onClose={() =>
+            setEnlargedSighting(null)
+          }
         />
       )}
 
-      <button onClick={onReportSighting} className="amr-btn-secondary w-full py-2.5 rounded-md text-sm mb-2 flex items-center justify-center gap-2">
-        <Camera size={15} />
-        Report another sighting
-      </button>
-      <button onClick={onReunite} className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2">
+      {!isOwnPet && (
+        <button
+          type="button"
+          onClick={onReportSighting}
+          className="amr-btn-secondary w-full py-2.5 rounded-md text-sm mb-2 flex items-center justify-center gap-2"
+        >
+          <Camera size={15} />
+          Report another sighting
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={onReunite}
+        className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2"
+      >
         <Heart size={16} />
         Mark {pet.name} as Reunited
       </button>
@@ -2720,32 +7954,102 @@ function TrailScreen({ pet, sightings, onBack, onReportSighting, onReunite, onMe
   );
 }
 
-function MessageThreadScreen({ title, subtitle, messages, onBack, onSend }) {
+function MessageThreadScreen({
+  title,
+  subtitle,
+  messages,
+  loading = false,
+  sending = false,
+  error = null,
+  onBack,
+  onSend,
+  canModerate = false,
+  onReportUser,
+  onBlockUser,
+}) {
   const [draft, setDraft] = useState("");
+  const bottomRef = useRef(null);
 
-  function submit() {
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [messages]);
+
+  async function submit() {
     const text = draft.trim();
-    if (!text) return;
-    onSend(text);
-    setDraft("");
+
+    if (!text || sending) {
+      return;
+    }
+
+    try {
+      await onSend(text);
+      setDraft("");
+    } catch {
+      // Parent displays the backend error.
+    }
   }
 
   return (
     <div className="flex flex-col" style={{ minHeight: "60vh" }}>
       <ScreenHeader title={title} onBack={onBack} />
-      <p className="text-xs mb-4" style={{ color: "#6B6459" }}>
+
+      <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
         {subtitle}
       </p>
 
+      {canModerate && (
+        <div className="flex justify-end gap-3 mb-4">
+          <button
+            type="button"
+            onClick={onReportUser}
+            className="text-xs underline"
+            style={{ color: "#6B6459" }}
+          >
+            Report user
+          </button>
+          <button
+            type="button"
+            onClick={onBlockUser}
+            className="text-xs underline font-semibold"
+            style={{ color: "#A33A20" }}
+          >
+            Block user
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="text-xs rounded-md px-3 py-2 mb-3"
+          style={{
+            color: "#A33A20",
+            background: "#F7E1D7",
+            border: "1px solid #E2572B",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col gap-2 mb-4">
-        {messages.length === 0 && (
+        {loading && (
+          <p className="text-sm italic" style={{ color: "#6B6459" }}>
+            Loading conversation…
+          </p>
+        )}
+
+        {!loading && messages.length === 0 && (
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
             Send {title} a message to get started.
           </p>
         )}
+
         {messages.map((m, i) => (
           <div
-            key={i}
+            key={m.id ?? i}
             className="amr-fade-in max-w-[80%] px-3 py-2 rounded-lg text-sm"
             style={{
               alignSelf: m.sender === "you" ? "flex-end" : "flex-start",
@@ -2754,9 +8058,19 @@ function MessageThreadScreen({ title, subtitle, messages, onBack, onSend }) {
               border: m.sender === "you" ? "none" : "2px solid #CBBFA0",
             }}
           >
-            {m.text}
+            <div>{m.text}</div>
+            {m.timeLabel && (
+              <div
+                className="text-[10px] mt-1 opacity-70"
+                style={{ textAlign: m.sender === "you" ? "right" : "left" }}
+              >
+                {m.timeLabel}
+              </div>
+            )}
           </div>
         ))}
+
+        <div ref={bottomRef} />
       </div>
 
       <div className="flex gap-2">
@@ -2766,11 +8080,13 @@ function MessageThreadScreen({ title, subtitle, messages, onBack, onSend }) {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="Type a message…"
+          disabled={loading || sending}
           className="amr-chip flex-1 px-3 py-2.5 rounded-md text-sm"
         />
+
         <button
           onClick={submit}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || loading || sending}
           className="amr-btn-primary px-4 rounded-md flex items-center justify-center"
           aria-label="Send"
         >
@@ -2781,60 +8097,173 @@ function MessageThreadScreen({ title, subtitle, messages, onBack, onSend }) {
   );
 }
 
+
 const MOCK_REPORTER_POOL = ["Alex R.", "Priya N.", "Diego M.", "Casey L."];
 
-function PhotoLightbox({ photos, startIndex, title, subtitle, onClose }) {
-  const [index, setIndex] = useState(startIndex || 0);
+function PhotoLightbox({
+  photos,
+  startIndex,
+  title,
+  subtitle,
+  onClose,
+}) {
+  const safePhotos = (
+    Array.isArray(photos) ? photos : []
+  ).filter(Boolean);
+
+  const [index, setIndex] = useState(
+    startIndex || 0,
+  );
+
+  if (safePhotos.length === 0) {
+    return null;
+  }
+
+  const currentPhoto =
+    safePhotos[index] || safePhotos[0];
+
+  const realPhoto =
+    isRealPhoto(currentPhoto);
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center px-4 z-50"
-      style={{ background: "rgba(32,41,31,0.85)" }}
+      style={{
+        background:
+          "rgba(32,41,31,0.85)",
+      }}
       onClick={onClose}
     >
-      <div className="amr-fade-in w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="amr-fade-in w-full max-w-sm"
+        onClick={(e) =>
+          e.stopPropagation()
+        }
+      >
         <div
-          className="relative w-full h-80 rounded-lg flex items-center justify-center mb-3"
-          style={{ background: photos[index] }}
+          className="relative w-full h-80 rounded-lg overflow-hidden flex items-center justify-center mb-3"
+          style={{
+            background:
+              !realPhoto && currentPhoto
+                ? currentPhoto
+                : "#20291F",
+          }}
         >
-          <HeartMark size={72} color="#F2E9D8" />
-          {photos.length > 1 && (
+          {realPhoto ? (
+            <img
+              src={currentPhoto}
+              alt={
+                title
+                  ? `${title} sighting`
+                  : "Sighting photo"
+              }
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <HeartMark
+              size={72}
+              color="#F2E9D8"
+            />
+          )}
+
+          {safePhotos.length > 1 && (
             <>
               {index > 0 && (
                 <button
-                  onClick={() => setIndex((i) => i - 1)}
+                  type="button"
+                  onClick={() =>
+                    setIndex(
+                      (current) =>
+                        current - 1,
+                    )
+                  }
                   aria-label="Previous photo"
                   className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(242,233,216,0.9)" }}
+                  style={{
+                    background:
+                      "rgba(242,233,216,0.9)",
+                  }}
                 >
-                  <ChevronLeft size={20} color="#20291F" />
+                  <ChevronLeft
+                    size={20}
+                    color="#20291F"
+                  />
                 </button>
               )}
-              {index < photos.length - 1 && (
+
+              {index <
+                safePhotos.length - 1 && (
                 <button
-                  onClick={() => setIndex((i) => i + 1)}
+                  type="button"
+                  onClick={() =>
+                    setIndex(
+                      (current) =>
+                        current + 1,
+                    )
+                  }
                   aria-label="Next photo"
                   className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(242,233,216,0.9)" }}
+                  style={{
+                    background:
+                      "rgba(242,233,216,0.9)",
+                  }}
                 >
-                  <ChevronRight size={20} color="#20291F" />
+                  <ChevronRight
+                    size={20}
+                    color="#20291F"
+                  />
                 </button>
               )}
+
               <span
                 className="absolute bottom-2 right-2 text-xs font-semibold px-1.5 py-0.5 rounded"
-                style={{ background: "rgba(32,41,31,0.75)", color: "#F2E9D8" }}
+                style={{
+                  background:
+                    "rgba(32,41,31,0.75)",
+                  color: "#F2E9D8",
+                }}
               >
-                {index + 1} / {photos.length}
+                {index + 1} /{" "}
+                {safePhotos.length}
               </span>
             </>
           )}
         </div>
+
         <div className="amr-panel rounded-lg p-3.5 flex items-start justify-between gap-2">
           <div>
-            {title && <div className="font-semibold text-sm" style={{ color: "#20291F" }}>{title}</div>}
-            {subtitle && <div className="text-xs" style={{ color: "#6B6459" }}>{subtitle}</div>}
+            {title && (
+              <div
+                className="font-semibold text-sm"
+                style={{
+                  color: "#20291F",
+                }}
+              >
+                {title}
+              </div>
+            )}
+
+            {subtitle && (
+              <div
+                className="text-xs"
+                style={{
+                  color: "#6B6459",
+                }}
+              >
+                {subtitle}
+              </div>
+            )}
           </div>
-          <button onClick={onClose} className="text-lg leading-none" style={{ color: "#6B6459" }} aria-label="Close">
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-lg leading-none"
+            style={{
+              color: "#6B6459",
+            }}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>
@@ -2842,30 +8271,51 @@ function PhotoLightbox({ photos, startIndex, title, subtitle, onClose }) {
     </div>
   );
 }
-
-function TabBar({ screen, setScreen }) {
+function TabBar({
+  screen,
+  setScreen,
+  notificationUnreadCount = 0,
+}) {
   const tabs = [
     { key: "home", label: "My Pets", icon: Home },
     { key: "alerts", label: "Alerts", icon: Bell },
+    { key: "notifications", label: "Inbox", icon: Bell },
     { key: "feed", label: "Community", icon: ImageIcon },
     { key: "profile", label: "Profile", icon: User },
   ];
+
   return (
-    <div className="flex gap-2 mt-6 pt-4" style={{ borderTop: "2px solid #CBBFA0" }}>
+    <div className="flex gap-1 mt-6 pt-4" style={{ borderTop: "2px solid #CBBFA0" }}>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = screen === tab.key;
+        const showBadge =
+          tab.key === "notifications" &&
+          notificationUnreadCount > 0;
+
         return (
           <button
             key={tab.key}
             onClick={() => setScreen(tab.key)}
-            className="flex-1 flex flex-col items-center gap-1 py-2 rounded-md text-xs font-semibold"
+            className="flex-1 flex flex-col items-center gap-1 py-2 rounded-md text-xs font-semibold relative"
             style={{
               color: isActive ? "#20291F" : "#6B6459",
               background: isActive ? "#DED2B4" : "transparent",
             }}
           >
-            <Icon size={18} />
+            <div className="relative">
+              <Icon size={18} />
+              {showBadge && (
+                <span
+                  className="absolute -top-2 -right-3 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center"
+                  style={{ background: "#E2572B", color: "#F2E9D8" }}
+                >
+                  {notificationUnreadCount > 99
+                    ? "99+"
+                    : notificationUnreadCount}
+                </span>
+              )}
+            </div>
             {tab.label}
           </button>
         );
@@ -2874,7 +8324,7 @@ function TabBar({ screen, setScreen }) {
   );
 }
 
-function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStories, onViewReunionStory }) {
+function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStories, reunionStoriesLoading, onViewReunionStory }) {
   const [subTab, setSubTab] = useState("photos"); // "photos" | "stories"
   return (
     <div>
@@ -2978,7 +8428,12 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
 
       {subTab === "stories" && (
         <div className="flex flex-col gap-3">
-          {reunionStories.length === 0 && (
+          {reunionStoriesLoading && (
+            <p className="text-sm italic" style={{ color: "#6B6459" }}>
+              Loading Reunion Stories...
+            </p>
+          )}
+          {!reunionStoriesLoading && reunionStories.length === 0 && (
             <p className="text-sm italic" style={{ color: "#6B6459" }}>
               No public Reunion Stories yet.
             </p>
@@ -3007,7 +8462,12 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
                 )}
                 <p className="text-sm italic mb-2">"{story.message}"</p>
                 <p className="text-xs" style={{ color: "#6B6459" }}>
-                  {story.ownerName} · 🏅 Hero: {story.heroName}
+                  {story.ownerName}
+                  {story.heroName
+                    ? ` · 🏅 Hero: ${story.heroName}`
+                    : story.reunionMethod === "SELF_FOUND"
+                      ? " · Found by owner"
+                      : ""}
                 </p>
               </div>
             </button>
@@ -3368,129 +8828,528 @@ function FoundPetMatchConfirmedScreen({ pet, onDone }) {
 
 const MAX_SIGHTING_PHOTOS = 3;
 
-function ReportSightingScreen({ pet, onBack, onSubmit }) {
-  const [photos, setPhotos] = useState([]); // up to 3 colors, standing in for real photo bytes
+
+function ReportSightingScreen({
+  pet,
+  reportId,
+  onBack,
+  onSuccess,
+  ensureLocationConsent,
+}) {
+  const [photos, setPhotos] = useState([]);
   const [gps, setGps] = useState(null);
   const [comment, setComment] = useState("");
+  const [locationText, setLocationText] = useState("");
+  const [direction, setDirection] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const sightingMapContainerRef = useRef(null);
+  const sightingLeafletMapRef = useRef(null);
+  const sightingMarkerRef = useRef(null);
 
-  function addPhoto() {
-    if (photos.length >= MAX_SIGHTING_PHOTOS) return;
-    const usedColors = new Set(photos);
-    const available = POST_PHOTO_COLORS.filter((c) => !usedColors.has(c));
-    const pool = available.length > 0 ? available : POST_PHOTO_COLORS;
-    setPhotos((prev) => [...prev, pool[Math.floor(Math.random() * pool.length)]]);
+  useEffect(() => {
+    if (!sightingMapContainerRef.current || sightingLeafletMapRef.current) return;
 
-    // GPS is captured once, at the moment of the first photo -- a sighting
-    // has one location even if you take a few photos of it, unlike the
-    // photos themselves which can be multiple angles.
+    const map = L.map(sightingMapContainerRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView([14.5995, 120.9842], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    map.on("click", (event) => {
+      setGps((current) => ({
+        lat: event.latlng.lat,
+        lng: event.latlng.lng,
+        accuracy: current?.accuracy ?? 0,
+      }));
+      setMessage("Sighting pin updated.");
+    });
+
+    sightingLeafletMapRef.current = map;
+    window.setTimeout(() => map.invalidateSize(), 0);
+
+    return () => {
+      map.remove();
+      sightingLeafletMapRef.current = null;
+      sightingMarkerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = sightingLeafletMapRef.current;
+    if (!map || !gps) return;
+
+    const latLng = L.latLng(Number(gps.lat), Number(gps.lng));
+    const markerIcon = L.divIcon({
+      className: "amr-leaflet-pin",
+      html: `
+        <div style="
+          width: 28px;
+          height: 28px;
+          background: #E2572B;
+          border: 2px solid #20291F;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          box-shadow: 0 2px 5px rgba(32,41,31,0.28);
+          position: relative;
+        ">
+          <div style="
+            width: 8px;
+            height: 8px;
+            background: #F2E9D8;
+            border-radius: 50%;
+            position: absolute;
+            left: 8px;
+            top: 8px;
+          "></div>
+        </div>
+      `,
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+    });
+
+    if (!sightingMarkerRef.current) {
+      const marker = L.marker(latLng, {
+        icon: markerIcon,
+        draggable: true,
+      }).addTo(map);
+
+      marker.on("dragend", () => {
+        const moved = marker.getLatLng();
+        setGps((current) => ({
+          lat: moved.lat,
+          lng: moved.lng,
+          accuracy: current?.accuracy ?? 0,
+        }));
+        setMessage("Sighting pin updated.");
+      });
+
+      sightingMarkerRef.current = marker;
+    } else {
+      sightingMarkerRef.current.setLatLng(latLng);
+      sightingMarkerRef.current.setIcon(markerIcon);
+    }
+
+    map.setView(latLng, Math.max(map.getZoom(), 17));
+  }, [gps]);
+
+  function choosePhotos(event) {
+    const selected = Array.from(
+      event.target.files || [],
+    ).slice(0, MAX_SIGHTING_PHOTOS);
+
+    setPhotos(selected);
+  }
+
+  function getCurrentLocation() {
+    if (typeof ensureLocationConsent === "function") {
+      return ensureLocationConsent(async () => {
+        performSightingCurrentLocation();
+      });
+    }
+
+    performSightingCurrentLocation();
+  }
+
+  function performSightingCurrentLocation() {
+    if (!navigator.geolocation) {
+      setMessage(
+        "Location is not supported on this device.",
+      );
+      return;
+    }
+
+    setMessage("Getting your location...");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGps({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+
+        setMessage("Location captured.");
+      },
+      (error) => {
+        console.error(error);
+
+        setMessage(
+          "Unable to get your location. Please allow location access.",
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      },
+    );
+  }
+
+  async function submit() {
+    const resolvedReportId =
+      Number(reportId) ||
+      Number(pet?.reportId) ||
+      (String(pet?.id || "").startsWith("backend-report-")
+        ? Number(String(pet.id).replace("backend-report-", ""))
+        : 0);
+
+    if (!resolvedReportId) {
+      setMessage(
+        `This missing-pet alert is not connected to a backend report yet. Case key: ${pet?.id || "unknown"}`,
+      );
+      return;
+    }
+
     if (!gps) {
-      const lat = (14.676 + (Math.random() - 0.5) * 0.01).toFixed(4);
-      const lng = (121.044 + (Math.random() - 0.5) * 0.01).toFixed(4);
-      setGps({ lat, lng, accuracy: Math.round(5 + Math.random() * 10) });
+      setMessage(
+        "Please capture your current location.",
+      );
+      return;
+    }
+
+    if (photos.length === 0) {
+      setMessage(
+        "Please choose at least one photo.",
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("Submitting sighting...");
+
+      const sighting =
+        await createSighting(resolvedReportId, {
+          sighted_at: new Date().toISOString(),
+          location_text:
+            locationText.trim() || undefined,
+          latitude: Number(gps.lat),
+          longitude: Number(gps.lng),
+          direction:
+            direction.trim() || undefined,
+          description:
+            comment.trim() || undefined,
+        });
+
+      const uploadedPhotos = [];
+
+      for (const photo of photos) {
+        setMessage(
+          `Uploading photo ${uploadedPhotos.length + 1} of ${photos.length}...`,
+        );
+
+        const uploaded =
+          await uploadSightingPhoto(
+            resolvedReportId,
+            Number(sighting.sighting_id),
+            photo,
+          );
+
+        uploadedPhotos.push(uploaded);
+      }
+
+      setMessage(
+        "Sighting reported successfully!",
+      );
+
+      onSuccess({
+        sighting,
+        photos: uploadedPhotos,
+        gps,
+        comment,
+      });
+    } catch (error) {
+      console.error(error);
+
+      setMessage(
+        error.message ||
+          "Unable to report sighting.",
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
-  function removePhoto(index) {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function submit() {
-    const reporterName = MOCK_REPORTER_POOL[Math.floor(Math.random() * MOCK_REPORTER_POOL.length)];
-    const distanceLabel = `${(0.2 + Math.random() * 1.5).toFixed(1)} km away`;
-    onSubmit({
-      id: `s-${Date.now()}`,
-      reporterName,
-      distanceLabel,
-      timeLabel: "just now",
-      confidence: "PENDING",
-      signals: [],
-      comment: comment.trim(),
-      photos,
-      photoColor: photos[0], // kept for any code still reading a single photo
-      captureLat: gps ? Number(gps.lat) : null,
-      captureLng: gps ? Number(gps.lng) : null,
-      gpsAccuracyMeters: gps ? gps.accuracy : null,
-    });
-  }
-
-  const canSubmit = photos.length > 0;
-
   return (
     <div>
-      <ScreenHeader title="Report a Sighting" onBack={onBack} />
-      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
-        Think you spotted {pet.name}? Take a photo now — sightings must be
-        captured live in the app so we can verify the location and time.
+      <ScreenHeader
+        title="Report a Sighting"
+        onBack={onBack}
+      />
+
+      <p
+        className="text-sm mb-5"
+        style={{ color: "#6B6459" }}
+      >
+        Think you spotted {pet.name}? Add a recent
+        photo and your current location to help
+        verify the sighting.
       </p>
 
-      <div className="font-semibold text-sm mb-1.5">
-        Photos ({photos.length}/{MAX_SIGHTING_PHOTOS})
-      </div>
-      <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
-        Up to {MAX_SIGHTING_PHOTOS} photos — different angles help confirm identity.
-      </p>
-      <div className="flex gap-2 mb-3">
-        {photos.map((color, i) => (
+      <div className="amr-panel rounded-lg p-4 mb-4">
+        <div className="flex items-center gap-3">
           <div
-            key={i}
-            className="amr-fade-in relative w-20 h-20 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: color }}
+            className="w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center shrink-0"
+            style={{
+              background: pet.color || "#2F6E62",
+              color: "#F2E9D8",
+            }}
           >
-            <HeartMark size={26} color="#F2E9D8" />
-            <button
-              onClick={() => removePhoto(i)}
-              aria-label="Remove photo"
-              className="absolute -top-3 -right-3 w-11 h-11 rounded-full flex items-center justify-center"
-            >
-              {/* Visible badge stays small (matches the design); the button
-                  itself is the full 44px minimum tap target (iOS HIG / Android
-                  Material both require this) -- an invisible larger hit area
-                  around a small visual dot, same technique iOS's own delete
-                  badges use. */}
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: "#20291F", color: "#F2E9D8" }}
-              >
-                ×
-              </span>
-            </button>
+            {pet.photos?.[0] ? (
+              <img
+                src={pet.photos[0]}
+                alt={`${pet.name} reference`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <HeartMark
+                size={26}
+                color="#F2E9D8"
+              />
+            )}
           </div>
-        ))}
-        {photos.length < MAX_SIGHTING_PHOTOS && (
-          <button
-            onClick={addPhoto}
-            className="amr-map w-20 h-20 rounded-lg flex items-center justify-center shrink-0"
-            style={{ color: "#6B6459" }}
-          >
-            <Camera size={20} />
-          </button>
-        )}
+
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold mb-1">
+              {pet.name}
+            </div>
+
+            <div
+              className="text-xs"
+              style={{ color: "#6B6459" }}
+            >
+              {pet.breed} · {pet.species}
+            </div>
+
+            {pet.lastLocationText &&
+              !/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(
+                String(pet.lastLocationText),
+              ) && (
+                <div
+                  className="text-xs mt-1"
+                  style={{ color: "#6B6459" }}
+                >
+                  Last seen: {pet.lastLocationText}
+                </div>
+              )}
+
+            {(!pet.lastLocationText ||
+              /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(
+                String(pet.lastLocationText),
+              )) && (
+              <div
+                className="text-xs mt-1"
+                style={{ color: "#6B6459" }}
+              >
+                Last seen area available in the active search
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      <div className="font-semibold text-sm mb-2">
+        📍 Sighting location
+      </div>
+
+      <div
+        ref={sightingMapContainerRef}
+        className="relative w-full h-48 rounded-lg overflow-hidden mb-2"
+        style={{
+          border: "1px solid #D2C39E",
+          background: "#E8DFC7",
+          zIndex: 0,
+        }}
+        aria-label="Interactive map for selecting the sighting location"
+      />
+
+      <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
+        {gps
+          ? "The pin marks the sighting location. Drag it or tap the map to adjust."
+          : "Use your current location or tap the map to drop the sighting pin."}
+      </div>
+
+      <button
+        type="button"
+        onClick={getCurrentLocation}
+        disabled={loading}
+        className="amr-btn-secondary w-full py-2.5 rounded-md mb-3"
+      >
+        <Navigation size={15} className="inline mr-2" />
+        Use Current Location
+      </button>
 
       {gps && (
-        <div className="amr-fade-in flex items-center justify-between text-xs mb-5" style={{ color: "#6B6459" }}>
-          <span className="flex items-center gap-1.5">
-            <MapPin size={13} /> {gps.lat}, {gps.lng}
-          </span>
-          <span>±{gps.accuracy}m accuracy</span>
+        <div className="mb-4">
+          <div
+            className="text-xs"
+            style={{ color: "#2F6E62" }}
+          >
+            ✓ Location captured
+            <br />
+            {gps.lat.toFixed(6)},{" "}
+            {gps.lng.toFixed(6)}
+            <br />
+            {Number(gps.accuracy) > 0 ? (
+              <>
+                Accuracy: ±{Math.round(gps.accuracy)} m
+              </>
+            ) : (
+              <>Location selected on map</>
+            )}
+          </div>
+
+          <a
+            href={`https://www.openstreetmap.org/?mlat=${encodeURIComponent(
+              gps.lat,
+            )}&mlon=${encodeURIComponent(
+              gps.lng,
+            )}#map=18/${encodeURIComponent(
+              gps.lat,
+            )}/${encodeURIComponent(
+              gps.lng,
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            className="amr-btn-secondary w-full py-2 rounded-md text-xs flex items-center justify-center gap-1.5 mt-2"
+          >
+            <MapPin size={14} />
+            View captured location on map
+          </a>
         </div>
       )}
 
-      <div className="font-semibold text-sm mb-1.5">Comments (optional)</div>
-      <textarea
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Anything that might help — which direction they went, how they seemed, nearby landmarks…"
-        className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-5"
-        rows={3}
+      <div className="font-semibold text-sm mb-1">
+        Location description
+      </div>
+
+      <input
+        type="text"
+        value={locationText}
+        onChange={(e) =>
+          setLocationText(e.target.value)
+        }
+        placeholder="Example: Near the community park"
+        className="w-full p-2.5 rounded-md mb-4"
+        style={{
+          border: "2px solid #20291F",
+          background: "#F2E9D8",
+        }}
       />
 
-      <button disabled={!canSubmit} onClick={submit} className="amr-btn-primary w-full py-3 rounded-md">
-        Submit Sighting
-      </button>
-      <p className="text-xs text-center mt-2" style={{ color: "#6B6459" }}>
-        Your report will be checked automatically, then reviewed by {pet.name}'s owner.
+      <div className="font-semibold text-sm mb-1">
+        Direction
+      </div>
+
+      <input
+        type="text"
+        value={direction}
+        onChange={(e) =>
+          setDirection(e.target.value)
+        }
+        placeholder="Example: Heading east"
+        className="w-full p-2.5 rounded-md mb-4"
+        style={{
+          border: "2px solid #20291F",
+          background: "#F2E9D8",
+        }}
+      />
+
+      <div className="font-semibold text-sm mb-1">
+        What did you see?
+      </div>
+
+      <textarea
+        value={comment}
+        onChange={(e) =>
+          setComment(e.target.value)
+        }
+        placeholder={`Describe what you noticed about ${pet.name}...`}
+        rows={3}
+        className="w-full p-2.5 rounded-md mb-4"
+        style={{
+          border: "2px solid #20291F",
+          background: "#F2E9D8",
+        }}
+      />
+
+      <div className="font-semibold text-sm mb-1">
+        📷 Photos ({photos.length}/
+        {MAX_SIGHTING_PHOTOS})
+      </div>
+
+      <p
+        className="text-xs mb-2"
+        style={{ color: "#6B6459" }}
+      >
+        JPG, PNG or WEBP. Maximum 5 MB per photo.
       </p>
+
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        onChange={choosePhotos}
+        disabled={loading}
+        className="w-full mb-3"
+      />
+
+      {photos.length > 0 && (
+        <div className="flex flex-col gap-1 mb-4">
+          {photos.map((photo, index) => (
+            <div
+              key={`${photo.name}-${index}`}
+              className="text-xs"
+              style={{ color: "#2F6E62" }}
+            >
+              ✓ {photo.name}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {message && (
+        <div
+          className="text-sm mb-4"
+          style={{
+            color:
+              message.includes("successfully")
+                ? "#2F6E62"
+                : "#6B6459",
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={
+          loading ||
+          !gps ||
+          photos.length === 0
+        }
+        className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2"
+        style={{
+          opacity:
+            loading ||
+            !gps ||
+            photos.length === 0
+              ? 0.55
+              : 1,
+        }}
+      >
+        <Camera size={16} />
+
+        {loading
+          ? "Submitting..."
+          : "Submit Sighting"}
+      </button>
     </div>
   );
 }
@@ -3624,9 +9483,107 @@ function PendingSightingScreen({ pet, sighting, onFinalize, onDone }) {
 
 function ReuniteScreen({
   pet, sightings, heroSelection, setHeroSelection, thankYouMessage, setThankYouMessage,
+  reunionMethod, setReunionMethod, reunionStory, setReunionStory,
   shareAsStory, setShareAsStory, onBack, onConfirm,
+  submitting = false, error = null,
 }) {
-  const candidates = sightings.filter((s) => s.confidence !== "PENDING");
+  const candidates = sightings.filter((s) => {
+    const ownerVerdict = String(s.ownerVerdict || "").toUpperCase();
+    const confidence = String(s.confidence || "").toUpperCase();
+
+    return (
+      ownerVerdict !== "NOT_MY_PET" &&
+      confidence !== "REJECTED"
+    );
+  });
+
+  // Show each helper only once, even when the same member submitted
+  // multiple sightings. Owner-verified Likely Match is always treated
+  // as the strongest evidence for Hero recognition.
+  const confidenceRank = {
+    VERIFIED: 5,
+    HIGH: 4,
+    MEDIUM: 3,
+    LOW: 2,
+    PENDING: 1,
+  };
+
+  const helperEvidenceRank = (sighting) => {
+    if (
+      String(sighting.ownerVerdict || "").toUpperCase() === "LIKELY_MATCH"
+    ) {
+      return confidenceRank.VERIFIED;
+    }
+
+    return (
+      confidenceRank[
+        String(sighting.confidence || "").toUpperCase()
+      ] ?? 0
+    );
+  };
+
+  const helperCandidates = Object.values(
+    candidates.reduce((groups, sighting) => {
+      const helperKey =
+        sighting.reporterId != null
+          ? `user-${sighting.reporterId}`
+          : `name-${String(sighting.reporterName || "REunited member").trim().toLowerCase()}`;
+
+      if (!groups[helperKey]) {
+        groups[helperKey] = {
+          ...sighting,
+          sightingCount: 1,
+        };
+        return groups;
+      }
+
+      groups[helperKey].sightingCount += 1;
+
+      const currentRank = helperEvidenceRank(groups[helperKey]);
+      const nextRank = helperEvidenceRank(sighting);
+
+      // Use the strongest sighting as the representative credit record.
+      if (nextRank > currentRank) {
+        groups[helperKey] = {
+          ...sighting,
+          sightingCount: groups[helperKey].sightingCount,
+        };
+      }
+
+      return groups;
+    }, {}),
+  ).sort((a, b) => {
+    const rankDifference =
+      helperEvidenceRank(b) - helperEvidenceRank(a);
+
+    if (rankDifference !== 0) return rankDifference;
+
+    return Number(b.sightingCount || 0) - Number(a.sightingCount || 0);
+  });
+
+  const verifiedHelper =
+    helperCandidates.find(
+      (sighting) =>
+        String(sighting.ownerVerdict || "").toUpperCase() ===
+        "LIKELY_MATCH",
+    ) || null;
+
+  const communityHelped = reunionMethod === "COMMUNITY_HELPED";
+
+  const chooseMethod = (method) => {
+    setReunionMethod(method);
+
+    if (method === "COMMUNITY_HELPED") {
+      if (verifiedHelper) {
+        setHeroSelection(verifiedHelper.id);
+      }
+      return;
+    }
+
+    setHeroSelection(null);
+    setThankYouMessage("");
+  };
+
   return (
     <div>
       <ScreenHeader title={`Mark ${pet.name} Reunited`} onBack={onBack} />
@@ -3636,70 +9593,124 @@ function ReuniteScreen({
         </div>
       </div>
       <p className="text-sm text-center mb-6" style={{ color: "#6B6459" }}>
-        This stops all missing alerts for {pet.name}. If someone helped find
-        them, recognize them below.
+        Wonderful news! Tell the community how {pet.name} made it home. Completing this will stop the missing alerts.
       </p>
 
-      <div className="font-semibold text-sm mb-2 flex items-center gap-2">
-        <Award size={16} />
-        Recognize a Hero (optional)
-      </div>
-      <div className="flex flex-col gap-2 mb-5">
-        {candidates.length === 0 && (
-          <p className="text-xs italic" style={{ color: "#6B6459" }}>
-            No scored sightings to credit yet — you can still close the case.
-          </p>
-        )}
-        {candidates.map((s) => (
+      <div className="font-semibold text-sm mb-2">How was {pet.name} found?</div>
+      <div className="grid grid-cols-1 gap-2 mb-5">
+        {[
+          ["SELF_FOUND", "I found my pet myself"],
+          ["COMMUNITY_HELPED", "A REunited member helped"],
+          ["OUTSIDE_HELP", "Someone outside REunited helped"],
+          ["OTHER", "Other"],
+        ].map(([value, label]) => (
           <button
-            key={s.id}
-            onClick={() => setHeroSelection(heroSelection === s.id ? null : s.id)}
-            className={`amr-chip w-full text-left px-3 py-2.5 rounded-md text-sm flex items-center justify-between ${
-              heroSelection === s.id ? "amr-chip-active" : ""
-            }`}
+            key={value}
+            type="button"
+            onClick={() => chooseMethod(value)}
+            className={`amr-chip w-full text-left px-3 py-2.5 rounded-md text-sm ${reunionMethod === value ? "amr-chip-active" : ""}`}
           >
-            <span>{s.reporterName}</span>
-            <ConfidenceBadge level={s.confidence} />
+            {label}
           </button>
         ))}
       </div>
 
-      {heroSelection && (
+      {communityHelped && (
         <div className="amr-fade-in mb-5">
-          <div className="font-semibold text-sm mb-2">Thank-you message (optional)</div>
-          <textarea
-            value={thankYouMessage}
-            onChange={(e) => setThankYouMessage(e.target.value)}
-            placeholder={`Thank you so much for helping find ${pet.name}!`}
-            className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-3"
-            rows={3}
-          />
-
-          <div className="font-semibold text-sm mb-2">Share this thank-you?</div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShareAsStory(false)}
-              className={`amr-chip flex-1 py-2 rounded-md text-sm ${!shareAsStory ? "amr-chip-active" : ""}`}
-            >
-              Keep Private
-            </button>
-            <button
-              onClick={() => setShareAsStory(true)}
-              className={`amr-chip flex-1 py-2 rounded-md text-sm ${shareAsStory ? "amr-chip-active" : ""}`}
-            >
-              Share Publicly
-            </button>
+          <div className="font-semibold text-sm mb-2 flex items-center gap-2">
+            <Award size={16} /> Choose the member who helped
           </div>
-          <p className="text-xs mt-1.5" style={{ color: "#6B6459" }}>
-            {shareAsStory
-              ? "This will appear as a Reunion Story in the Community tab, visible to everyone."
-              : `Sent only to ${sightings.find((s) => s.id === heroSelection)?.reporterName || "the Hero"}.`}
-          </p>
+          <div className="flex flex-col gap-2 mb-4">
+            {helperCandidates.length === 0 && (
+              <p className="text-xs italic" style={{ color: "#6B6459" }}>
+                No sightings are available to credit yet.
+              </p>
+            )}
+            {helperCandidates.map((s) => (
+              <button
+                key={s.reporterId != null ? `helper-${s.reporterId}` : `helper-${s.id}`}
+                type="button"
+                onClick={() => setHeroSelection(s.id)}
+                className={`amr-chip w-full text-left px-3 py-2.5 rounded-md text-sm flex items-center justify-between gap-3 ${heroSelection === s.id ? "amr-chip-active" : ""}`}
+              >
+                <span className="min-w-0">
+                  <span className="block font-semibold">
+                    {publicDisplayName(s.reporterName)}
+                  </span>
+                  <span
+                    className="block text-xs font-normal mt-0.5"
+                    style={{ color: "#6B6459" }}
+                  >
+                    {s.sightingCount} {s.sightingCount === 1 ? "sighting" : "sightings"} reported for {pet.name}
+                  </span>
+                  {String(s.ownerVerdict || "").toUpperCase() === "LIKELY_MATCH" && (
+                    <span
+                      className="block text-xs font-semibold mt-1"
+                      style={{ color: "#2F6E62" }}
+                    >
+                      ✓ Owner verified Likely Match
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0">
+                  <ConfidenceBadge level={s.confidence} />
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {heroSelection && (
+            <div className="amr-fade-in">
+              <div className="font-semibold text-sm mb-2">Thank-you message (optional)</div>
+              <textarea
+                value={thankYouMessage}
+                onChange={(e) => setThankYouMessage(e.target.value)}
+                placeholder={`Thank you so much for helping find ${pet.name}!`}
+                className="amr-chip w-full px-3 py-2 rounded-md text-sm"
+                rows={3}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      <button onClick={onConfirm} className="amr-btn-primary w-full py-3 rounded-md">
-        {heroSelection ? "Send Thanks & Close Case" : "Close Case"}
+      <div className="font-semibold text-sm mb-2">Tell your Reunion Story</div>
+      <textarea
+        value={reunionStory}
+        onChange={(e) => setReunionStory(e.target.value)}
+        placeholder={`Tell us how ${pet.name} was found and made it home...`}
+        className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-4"
+        rows={5}
+      />
+
+      <div className="font-semibold text-sm mb-2">Share this Reunion Story?</div>
+      <div className="flex gap-2 mb-2">
+        <button type="button" onClick={() => setShareAsStory(false)} className={`amr-chip flex-1 py-2 rounded-md text-sm ${!shareAsStory ? "amr-chip-active" : ""}`}>
+          Keep Private
+        </button>
+        <button type="button" onClick={() => setShareAsStory(true)} className={`amr-chip flex-1 py-2 rounded-md text-sm ${shareAsStory ? "amr-chip-active" : ""}`}>
+          Share Publicly
+        </button>
+      </div>
+      <p className="text-xs mb-5" style={{ color: "#6B6459" }}>
+        {shareAsStory
+          ? "Your story will appear in Community → Reunion Stories."
+          : "Your reunion details will stay private."}
+      </p>
+
+      {error && (
+        <div className="rounded-md px-3 py-2 mb-3 text-sm" style={{ background: "#FDE8E2", color: "#9B2C1F" }}>
+          {error}
+        </div>
+      )}
+
+      <button
+        onClick={onConfirm}
+        disabled={submitting}
+        className="amr-btn-primary w-full py-3 rounded-md"
+        style={{ opacity: submitting ? 0.65 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
+      >
+        {submitting ? "Completing Reunion…" : "Complete Reunion"}
       </button>
     </div>
   );
@@ -3746,7 +9757,7 @@ function ReunitedScreen({ pet, reunion, onDone }) {
 // mission/intro content belongs here, not in a tab a returning user has to
 // look at every time. No step counter: this isn't part of the numbered
 // verification flow, just the door into it.
-function WelcomeStep({ onContinue }) {
+function WelcomeStep({ onContinue, onLogin }) {
   return (
     <div>
       <div className="flex justify-center mb-6">
@@ -3779,17 +9790,31 @@ function WelcomeStep({ onContinue }) {
       <button onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
         Get Started
       </button>
+      <div className="text-center mt-4">
+  <span className="text-sm" style={{ color: "#6B6459" }}>
+    Already have an account?{" "}
+  </span>
+  <button
+    type="button"
+    onClick={onLogin}
+    className="text-sm font-semibold"
+    style={{ color: "#2F6E62" }}
+  >
+    Log In
+  </button>
+</div>
     </div>
   );
 }
 
-function Onboarding({ onComplete }) {
-  // welcome | contact | code | profileDetails | idType | idCapture | verifying | verified
+function Onboarding({ onComplete, onLoginComplete }) {
+  // welcome | login | contact | code | profileDetails | idType | idCapture | verifying | verified
   const [stage, setStage] = useState("welcome");
   const [contact, setContact] = useState("");
   const [contactMethod, setContactMethod] = useState("email");
   const [code, setCode] = useState("");
   const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
   const [address, setAddress] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
@@ -3798,7 +9823,48 @@ function Onboarding({ onComplete }) {
 
   return (
     <div>
-      {stage === "welcome" && <WelcomeStep onContinue={() => setStage("contact")} />}
+      {stage === "welcome" && (
+  <WelcomeStep
+    onContinue={() => setStage("contact")}
+    onLogin={() => setStage("login")}
+  />
+)}
+{stage === "login" && (
+  <LoginStep
+    onBack={() => setStage("welcome")}
+    onLogin={async ({ email, password }) => {
+      try {
+        const response = await fetch("http://localhost:3000/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.message || "Invalid email or password");
+          return;
+        }
+
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        onLoginComplete(data.user);
+      } catch (error) {
+        console.error("Login error:", error);
+        alert(
+          "Unable to connect to REunited. Please make sure the backend is running."
+        );
+      }
+    }}
+  />
+)}
       {stage === "contact" && (
         <ContactStep
           contact={contact}
@@ -3823,6 +9889,8 @@ function Onboarding({ onComplete }) {
         <ProfileDetailsStep
           fullName={fullName}
           setFullName={setFullName}
+          password={password}
+          setPassword={setPassword}
           address={address}
           setAddress={setAddress}
           emergencyContactName={emergencyContactName}
@@ -3849,10 +9917,75 @@ function Onboarding({ onComplete }) {
       {stage === "verified" && (
         <VerifiedStep
           onContinue={() =>
-            onComplete({ contact, contactMethod, fullName, address, emergencyContactName, emergencyContactPhone })
+            onComplete({
+  contact,
+  contactMethod,
+  fullName,
+  password,
+  address,
+  emergencyContactName,
+  emergencyContactPhone
+})
           }
         />
       )}
+    </div>
+  );
+}
+
+function LoginStep({ onBack, onLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const canLogin =
+    /\S+@\S+\.\S+/.test(email) &&
+    password.length >= 8;
+
+  return (
+    <div>
+      <OnboardingHeader onBack={onBack} />
+
+      <div className="amr-display text-4xl leading-none mb-1">
+        WELCOME BACK
+      </div>
+
+      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
+        Log in to continue helping pets find their way home.
+      </p>
+
+      <div className="font-semibold text-sm mb-1.5">
+        Email
+      </div>
+
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        autoComplete="email"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
+      />
+
+      <div className="font-semibold text-sm mb-1.5">
+        Password
+      </div>
+
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Your password"
+        autoComplete="current-password"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-5"
+      />
+
+      <button
+        disabled={!canLogin}
+        onClick={() => onLogin({ email, password })}
+        className="amr-btn-primary w-full py-3 rounded-md"
+      >
+        Log In
+      </button>
     </div>
   );
 }
@@ -3875,22 +10008,92 @@ function OnboardingHeader({ step, total, onBack }) {
   );
 }
 
-function ContactStep({ contact, setContact, contactMethod, setContactMethod, onBack, onContinue }) {
-  const isValid = contactMethod === "email" ? /\S+@\S+\.\S+/.test(contact) : contact.replace(/\D/g, "").length >= 7;
+function ContactStep({
+  contact,
+  setContact,
+  contactMethod,
+  setContactMethod,
+  onBack,
+  onContinue,
+}) {
+  const isValid =
+    contactMethod === "email"
+      ? /\S+@\S+\.\S+/.test(contact)
+      : contact.replace(/\D/g, "").length >= 7;
+
+  const handleSendCode = async () => {
+    if (contactMethod !== "email") {
+      alert("Phone verification is not available yet. Please use email.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "http://localhost:3000/auth/send-verification-code",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: contact,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Unable to send verification code");
+        return;
+      }
+
+      
+
+      onContinue();
+    } catch (error) {
+      console.error("Send verification code error:", error);
+      alert(
+        "Unable to connect to REunited. Please make sure the backend is running."
+      );
+    }
+  };
+
   return (
     <div>
       <OnboardingHeader step={1} total={5} onBack={onBack} />
-      <div className="amr-display text-4xl leading-none mb-1">JOIN THE SEARCH</div>
+
+      <div className="amr-display text-4xl leading-none mb-1">
+        JOIN THE SEARCH
+      </div>
+
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         REunited only alerts verified people, so every account starts with
         a quick verification.
       </p>
 
       <div className="flex gap-2 mb-3">
-        <button onClick={() => { setContactMethod("email"); setContact(""); }} className={`amr-chip flex-1 py-2 rounded-md text-sm ${contactMethod === "email" ? "amr-chip-active" : ""}`}>
+        <button
+          onClick={() => {
+            setContactMethod("email");
+            setContact("");
+          }}
+          className={`amr-chip flex-1 py-2 rounded-md text-sm ${
+            contactMethod === "email" ? "amr-chip-active" : ""
+          }`}
+        >
           Email
         </button>
-        <button onClick={() => { setContactMethod("phone"); setContact(""); }} className={`amr-chip flex-1 py-2 rounded-md text-sm ${contactMethod === "phone" ? "amr-chip-active" : ""}`}>
+
+        <button
+          onClick={() => {
+            setContactMethod("phone");
+            setContact("");
+          }}
+          className={`amr-chip flex-1 py-2 rounded-md text-sm ${
+            contactMethod === "phone" ? "amr-chip-active" : ""
+          }`}
+        >
           Phone
         </button>
       </div>
@@ -3899,24 +10102,143 @@ function ContactStep({ contact, setContact, contactMethod, setContactMethod, onB
         type={contactMethod === "email" ? "email" : "tel"}
         value={contact}
         onChange={(e) => setContact(e.target.value)}
-        placeholder={contactMethod === "email" ? "you@example.com" : "(555) 555-0100"}
+        placeholder={
+          contactMethod === "email" ? "you@example.com" : "(555) 555-0100"
+        }
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-5"
       />
 
-      <button disabled={!isValid} onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
+      <button
+        disabled={!isValid}
+        onClick={handleSendCode}
+        className="amr-btn-primary w-full py-3 rounded-md"
+      >
         Send verification code
       </button>
     </div>
   );
 }
 
-function CodeStep({ contact, contactMethod, code, setCode, onBack, onContinue }) {
+function CodeStep({
+  contact,
+  contactMethod,
+  code,
+  setCode,
+  onBack,
+  onContinue,
+}) {
+  const [resendSeconds, setResendSeconds] = useState(60);
+  const [isResending, setIsResending] = useState(false);
+
+  useEffect(() => {
+    if (resendSeconds <= 0) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setResendSeconds((seconds) => seconds - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendSeconds]);
+
+  const handleVerifyCode = async () => {
+    if (contactMethod !== "email") {
+      alert("Phone verification is not available yet.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "http://localhost:3000/auth/verify-code",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: contact,
+            code,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Invalid verification code");
+        return;
+      }
+
+      onContinue();
+    } catch (error) {
+      console.error("Verify code error:", error);
+      alert(
+        "Unable to connect to REunited. Please make sure the backend is running."
+      );
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (contactMethod !== "email") {
+      alert("Phone verification is not available yet.");
+      return;
+    }
+
+    if (resendSeconds > 0 || isResending) {
+      return;
+    }
+
+    try {
+      setIsResending(true);
+
+      const response = await fetch(
+        "http://localhost:3000/auth/send-verification-code",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: contact,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Unable to resend verification code");
+        return;
+      }
+
+      setCode("");
+      setResendSeconds(60);
+
+      alert("A new verification code has been sent.");
+    } catch (error) {
+      console.error("Resend verification code error:", error);
+      alert(
+        "Unable to connect to REunited. Please make sure the backend is running."
+      );
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   return (
     <div>
       <OnboardingHeader step={2} total={5} onBack={onBack} />
-      <div className="amr-display text-4xl leading-none mb-1">CHECK YOUR {contactMethod === "email" ? "INBOX" : "PHONE"}</div>
+
+      <div className="amr-display text-4xl leading-none mb-1">
+        CHECK YOUR {contactMethod === "email" ? "INBOX" : "PHONE"}
+      </div>
+
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
-        We sent a 6-digit code to <span className="font-medium">{contact || "your contact"}</span>.
+        We sent a 6-digit code to{" "}
+        <span className="font-medium">
+          {contact || "your contact"}
+        </span>.
       </p>
 
       <input
@@ -3924,25 +10246,52 @@ function CodeStep({ contact, contactMethod, code, setCode, onBack, onContinue })
         inputMode="numeric"
         maxLength={6}
         value={code}
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+        onChange={(e) =>
+          setCode(e.target.value.replace(/\D/g, ""))
+        }
         placeholder="123456"
-        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-2 text-center tracking-[0.3em] font-semibold"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-5 text-center tracking-[0.3em] font-semibold"
       />
-      <p className="text-xs mb-5" style={{ color: "#6B6459" }}>Demo mode — any 6 digits will work.</p>
 
-      <button disabled={code.length !== 6} onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
+      <button
+        disabled={code.length !== 6}
+        onClick={handleVerifyCode}
+        className="amr-btn-primary w-full py-3 rounded-md"
+      >
         Verify code
       </button>
+
+      <div className="text-center mt-4">
+        {resendSeconds > 0 ? (
+          <p
+            className="text-sm"
+            style={{ color: "#6B6459" }}
+          >
+            Resend code in {resendSeconds}s
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={handleResendCode}
+            disabled={isResending}
+            className="text-sm font-semibold"
+          >
+            {isResending ? "Sending..." : "Resend code"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 function ProfileDetailsStep({
-  fullName, setFullName, address, setAddress,
+  fullName, setFullName, password, setPassword, address, setAddress,
   emergencyContactName, setEmergencyContactName, emergencyContactPhone, setEmergencyContactPhone,
   onBack, onContinue,
 }) {
-  const canContinue = fullName.trim().length > 0;
+  const canContinue =
+  fullName.trim().length > 0 &&
+  password.length >= 8;
   return (
     <div>
       <OnboardingHeader step={3} total={5} onBack={onBack} />
@@ -3959,6 +10308,20 @@ function ProfileDetailsStep({
         placeholder="Your name"
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
       />
+
+      {/* PASSWORD - ADD THIS */}
+<div className="font-semibold text-sm mb-1.5">Password</div>
+<input
+  type="password"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+  placeholder="At least 8 characters"
+  autoComplete="new-password"
+  className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-1"
+/>
+<p className="text-xs mb-4" style={{ color: "#6B6459" }}>
+  Use at least 8 characters.
+</p>
 
       <div className="font-semibold text-sm mb-1.5">Home address (optional)</div>
       <input
@@ -4218,22 +10581,101 @@ const ADMIN_CATEGORY_TITLES = {
   reunitedToday: "Reunited Today",
 };
 
-function AdminDashboardScreen({ onExit, feedbackMessages, onSendReply }) {
+function AdminDashboardScreen({
+  onExit,
+  feedbackMessages,
+  onSendReply,
+}) {
   const [drilldown, setDrilldown] = useState(null);
   const [identityReviews, setIdentityReviews] = useState(() => buildIdentityReviews(18));
   const [photoReviews, setPhotoReviews] = useState(() => buildPhotoReviews(27));
-  const [userReports, setUserReports] = useState(() => buildUserReports(6));
+  const [userReports, setUserReports] = useState([]);
+  const [userReportsLoading, setUserReportsLoading] = useState(true);
+  const [userReportsError, setUserReportsError] = useState(null);
+  const [reviewingUserReportId, setReviewingUserReportId] = useState(null);
   const [activeCasesSample] = useState(() => buildActiveCasesSample(10));
   const [reunitedTodayList] = useState(() => buildReunitedToday(14));
+  async function loadAdminUserReports() {
+    setUserReportsLoading(true);
+    setUserReportsError(null);
+
+    try {
+      const reports = await getAdminUserReports();
+      setUserReports(Array.isArray(reports) ? reports : []);
+    } catch (error) {
+      console.error("Load user reports error:", error);
+      setUserReportsError(
+        error.message || "Unable to load user reports.",
+      );
+    } finally {
+      setUserReportsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAdminUserReports();
+  }, []);
+
+  async function handleReviewUserReport(
+    userReportId,
+    status,
+    resolutionNote,
+  ) {
+    setReviewingUserReportId(userReportId);
+    setUserReportsError(null);
+
+    try {
+      await reviewAdminUserReport(userReportId, {
+        status,
+        resolutionNote,
+      });
+
+      setUserReports((prev) =>
+        prev.filter(
+          (report) =>
+            Number(report.user_report_id) !==
+            Number(userReportId),
+        ),
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Review user report error:", error);
+      setUserReportsError(
+        error.message || "Unable to update this user report.",
+      );
+      return false;
+    } finally {
+      setReviewingUserReportId(null);
+    }
+  }
 
   const stats = [
     { key: "activeCases", emoji: "🚨", label: "Active Missing Cases", value: 142, accent: "#E2572B" },
-    { key: "idReviews", emoji: "⏳", label: "Identity Reviews", value: identityReviews.length, accent: "#6B6459" },
-    { key: "photoReviews", emoji: "📷", label: "Photo Reviews", value: photoReviews.length, accent: "#6B6459" },
-    { key: "userReports", emoji: "🚩", label: "User Reports", value: userReports.length, accent: "#E2572B" },
+    {
+      key: "userReports",
+      emoji: "🚩",
+      label: "User Reports",
+      value: userReportsLoading ? "…" : userReports.length,
+      accent: "#E2572B",
+    },
     { key: "messages", emoji: "💬", label: "Messages", value: feedbackMessages.length, accent: "#2F6E62" },
     { key: "reunitedToday", emoji: "❤️", label: "Reunited Today", value: 14, accent: "#2F6E62" },
   ];
+
+  if (drilldown === "userReports") {
+    return (
+      <AdminUserReportsScreen
+        reports={userReports}
+        loading={userReportsLoading}
+        error={userReportsError}
+        reviewingUserReportId={reviewingUserReportId}
+        onBack={() => setDrilldown(null)}
+        onRefresh={loadAdminUserReports}
+        onReview={handleReviewUserReport}
+      />
+    );
+  }
 
   if (drilldown) {
     return (
@@ -4258,22 +10700,51 @@ function AdminDashboardScreen({ onExit, feedbackMessages, onSendReply }) {
 
   return (
     <div>
-      <div className="rounded-lg p-4 mb-5 flex items-center justify-between" style={{ background: "#20291F" }}>
+      <div
+        className="rounded-lg p-4 mb-5 flex items-center justify-between"
+        style={{ background: "#20291F" }}
+      >
         <div>
           <div className="flex items-baseline gap-1.5">
             <Wordmark size="text-2xl" />
-            <span className="amr-display text-2xl leading-none" style={{ color: "#F2E9D8" }}>ADMIN</span>
+            <span
+              className="amr-display text-2xl leading-none"
+              style={{ color: "#F2E9D8" }}
+            >
+              ADMIN
+            </span>
           </div>
-          <div className="text-xs mt-1" style={{ color: "#CBBFA0" }}>Dashboard</div>
+          <div
+            className="text-xs mt-1"
+            style={{ color: "#CBBFA0" }}
+          >
+            Dashboard
+          </div>
         </div>
+
         <button
           onClick={onExit}
           className="text-xs font-semibold px-3 py-1.5 rounded-md shrink-0"
-          style={{ background: "#F2E9D8", color: "#20291F" }}
+          style={{
+            background: "#F2E9D8",
+            color: "#20291F",
+          }}
         >
           Exit
         </button>
       </div>
+
+      {pendingError && (
+        <div
+          className="rounded-md p-3 mb-3 text-sm"
+          style={{
+            background: "#FCE8E3",
+            color: "#B9382B",
+          }}
+        >
+          {pendingError}
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         {stats.map((stat) => (
@@ -4281,17 +10752,336 @@ function AdminDashboardScreen({ onExit, feedbackMessages, onSendReply }) {
             key={stat.key}
             onClick={() => setDrilldown(stat.key)}
             className="amr-panel rounded-lg p-4 flex items-center justify-between text-left w-full"
-            style={{ borderLeft: `4px solid ${stat.accent}` }}
+            style={{
+              borderLeft: `4px solid ${stat.accent}`,
+            }}
           >
-            <span className="text-sm font-medium">{stat.emoji} {stat.label}</span>
-            <span className="amr-display text-2xl" style={{ color: stat.accent }}>{stat.value}</span>
+            <span className="text-sm font-medium">
+              {stat.emoji} {stat.label}
+            </span>
+            <span
+              className="amr-display text-2xl"
+              style={{ color: stat.accent }}
+            >
+              {stat.value}
+            </span>
           </button>
         ))}
       </div>
 
-      <p className="text-xs text-center mt-5" style={{ color: "#6B6459" }}>
-        Tap a stat to view the cases behind it.
+      <p
+        className="text-xs text-center mt-5"
+        style={{ color: "#6B6459" }}
+      >
+        User Reports are loaded from the real moderation queue. Normal missing-pet cases do not require staff approval.
       </p>
+    </div>
+  );
+}
+
+function AdminPendingReportsScreen({
+  reports,
+  loading,
+  error,
+  approvingReportId,
+  onBack,
+  onRefresh,
+  onApprove,
+}) {
+  return (
+    <div>
+      <ScreenHeader
+        title="Missing Reports to Review"
+        onBack={onBack}
+      />
+
+      {error && (
+        <div
+          className="rounded-md p-3 mb-3 text-sm"
+          style={{
+            background: "#FCE8E3",
+            color: "#B9382B",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p
+          className="text-sm"
+          style={{ color: "#6B6459" }}
+        >
+          Loading pending reports...
+        </p>
+      ) : reports.length === 0 ? (
+        <div className="amr-panel rounded-lg p-4 text-center">
+          <p className="text-sm mb-3">
+            All caught up — no missing reports are waiting
+            for review.
+          </p>
+          <button
+            onClick={onRefresh}
+            className="amr-btn-secondary px-4 py-2 rounded-md text-sm"
+          >
+            Refresh
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {reports.map((report) => (
+            <div
+              key={report.report_id}
+              className="amr-panel rounded-lg p-4"
+            >
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <div className="font-semibold">
+                    {report.name}
+                  </div>
+                  <div
+                    className="text-xs"
+                    style={{ color: "#6B6459" }}
+                  >
+                    Report #{report.report_id}
+                    {report.pet_id
+                      ? ` · Pet #${report.pet_id}`
+                      : ""}
+                  </div>
+                </div>
+
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: "#C28A2C" }}
+                >
+                  PENDING REVIEW
+                </span>
+              </div>
+
+              <div
+                className="text-sm space-y-1 mb-3"
+                style={{ color: "#6B6459" }}
+              >
+                <div>
+                  Last seen:{" "}
+                  {report.last_seen_at
+                    ? new Date(
+                        report.last_seen_at,
+                      ).toLocaleString()
+                    : "Not provided"}
+                </div>
+                <div>
+                  Location:{" "}
+                  {report.last_location_text ||
+                    "Not provided"}
+                </div>
+                {report.description && (
+                  <div>
+                    Details: {report.description}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() =>
+                  onApprove(report.report_id)
+                }
+                disabled={
+                  Number(approvingReportId) ===
+                  Number(report.report_id)
+                }
+                className="amr-btn-teal w-full py-2 rounded-md text-sm"
+              >
+                {Number(approvingReportId) ===
+                Number(report.report_id)
+                  ? "Approving..."
+                  : "Approve & Activate"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatModerationReason(reason) {
+  return String(reason || "")
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function AdminUserReportsScreen({
+  reports,
+  loading,
+  error,
+  reviewingUserReportId,
+  onBack,
+  onRefresh,
+  onReview,
+}) {
+  const [resolutionNotes, setResolutionNotes] = useState({});
+
+  async function submitReview(report, status) {
+    const reportId = Number(report.user_report_id);
+    const note = String(resolutionNotes[reportId] || "").trim();
+    const ok = await onReview(reportId, status, note);
+
+    if (ok) {
+      setResolutionNotes((prev) => {
+        const next = { ...prev };
+        delete next[reportId];
+        return next;
+      });
+    }
+  }
+
+  return (
+    <div>
+      <ScreenHeader title="User Reports" onBack={onBack} />
+
+      <p className="text-xs mb-4" style={{ color: "#6B6459" }}>
+        Pending safety reports submitted by REunited members. Reviewing a report
+        records the admin, review time, final status, and optional resolution note.
+      </p>
+
+      {error && (
+        <div
+          className="rounded-md p-3 mb-3 text-sm"
+          style={{ background: "#FCE8E3", color: "#B9382B" }}
+        >
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-sm" style={{ color: "#6B6459" }}>
+          Loading user reports...
+        </p>
+      ) : reports.length === 0 ? (
+        <div className="amr-panel rounded-lg p-4 text-center">
+          <p className="text-sm mb-3">All caught up — no pending user reports.</p>
+          <button
+            onClick={onRefresh}
+            className="amr-btn-secondary px-4 py-2 rounded-md text-sm"
+          >
+            Refresh
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {reports.map((report) => {
+            const id = Number(report.user_report_id);
+            const busy = Number(reviewingUserReportId) === id;
+
+            return (
+              <div key={id} className="amr-panel rounded-lg p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <div className="font-semibold">
+                      {report.reported_user_name || `User #${report.reported_user_id}`}
+                    </div>
+                    <div className="text-xs" style={{ color: "#6B6459" }}>
+                      User Report #{id}
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold" style={{ color: "#C28A2C" }}>
+                    PENDING
+                  </span>
+                </div>
+
+                <div className="text-sm space-y-2 mb-3">
+                  <div className="flex justify-between gap-3">
+                    <span style={{ color: "#6B6459" }}>Reported by</span>
+                    <span className="font-medium text-right">
+                      {report.reporter_name || `User #${report.reporter_id}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span style={{ color: "#6B6459" }}>Reason</span>
+                    <span className="font-medium text-right">
+                      {formatModerationReason(report.reason)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span style={{ color: "#6B6459" }}>Submitted</span>
+                    <span className="font-medium text-right">
+                      {report.created_at
+                        ? new Date(report.created_at).toLocaleString()
+                        : "Unknown"}
+                    </span>
+                  </div>
+                  {report.report_id && (
+                    <div className="flex justify-between gap-3">
+                      <span style={{ color: "#6B6459" }}>Related case</span>
+                      <span className="font-medium text-right">
+                        Report #{report.report_id}
+                        {report.related_pet_name ? ` · ${report.related_pet_name}` : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {report.details && (
+                  <div
+                    className="rounded-md p-3 mb-3 text-sm"
+                    style={{ background: "#E7DDC8" }}
+                  >
+                    <div className="text-xs font-semibold mb-1" style={{ color: "#6B6459" }}>
+                      MEMBER DETAILS
+                    </div>
+                    {report.details}
+                  </div>
+                )}
+
+                <label className="block text-xs font-semibold mb-1" style={{ color: "#6B6459" }}>
+                  RESOLUTION NOTE (OPTIONAL)
+                </label>
+                <textarea
+                  value={resolutionNotes[id] || ""}
+                  onChange={(e) =>
+                    setResolutionNotes((prev) => ({
+                      ...prev,
+                      [id]: e.target.value,
+                    }))
+                  }
+                  maxLength={2000}
+                  rows={3}
+                  disabled={busy}
+                  placeholder="Internal moderation note..."
+                  className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-3"
+                />
+
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => submitReview(report, "REVIEWED")}
+                    disabled={busy}
+                    className="amr-btn-teal w-full py-2 rounded-md text-sm"
+                  >
+                    {busy ? "Saving..." : "Mark Reviewed"}
+                  </button>
+                  <button
+                    onClick={() => submitReview(report, "ACTIONED")}
+                    disabled={busy}
+                    className="amr-btn-primary w-full py-2 rounded-md text-sm"
+                  >
+                    {busy ? "Saving..." : "Mark Actioned"}
+                  </button>
+                  <button
+                    onClick={() => submitReview(report, "DISMISSED")}
+                    disabled={busy}
+                    className="amr-btn-secondary w-full py-2 rounded-md text-sm"
+                  >
+                    {busy ? "Saving..." : "Dismiss Report"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -4633,6 +11423,22 @@ function FounderWelcomeScreen({ rank, onContinue }) {
 export default function App() {
   const [view, setView] = useState("onboarding"); // "onboarding" | "founderWelcome" | "app" | "admin"
   const [onboardingProfile, setOnboardingProfile] = useState(null); // { contact, contactMethod, fullName, address, emergencyContactName, emergencyContactPhone }
+  let storedUser = null;
+
+  try {
+    storedUser = JSON.parse(
+      localStorage.getItem("user") || "null",
+    );
+  } catch {
+    storedUser = null;
+  }
+
+  const isAdmin =
+    String(
+      onboardingProfile?.role ||
+        storedUser?.role ||
+        "",
+    ).toUpperCase() === "ADMIN";
   const [signupRank, setSignupRank] = useState(null);
   // Lives here (not inside MainApp) specifically so it survives switching to
   // the Admin view, which unmounts MainApp entirely -- otherwise Admin could
@@ -4656,7 +11462,40 @@ export default function App() {
   // -- what's left is clearing the App-level state that survives unmounts
   // (onboarding profile, founding-member rank, message threads), then
   // sending the person back to square one.
-  function deleteAccount() {
+  async function deleteAccount(confirmation) {
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      throw new Error("Your session has expired. Please sign in again before deleting your account.");
+    }
+
+    const response = await fetch("http://localhost:3000/users/me", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        confirmation,
+      }),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      const message = Array.isArray(data?.message)
+        ? data.message.join(" ")
+        : data?.message;
+      throw new Error(message || "Unable to delete your account.");
+    }
+
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
     setOnboardingProfile(null);
     setSignupRank(null);
     setMessagesByThread({});
@@ -4720,7 +11559,7 @@ export default function App() {
       `}</style>
 
       <div className="amr-root w-full max-w-sm">
-        {view === "admin" ? (
+        {view === "admin" && isAdmin ? (
           <AdminDashboardScreen
             onExit={() => setView("app")}
             feedbackMessages={messagesByThread[ADMIN_FEEDBACK_THREAD_ID] || []}
@@ -4738,26 +11577,82 @@ export default function App() {
           <FounderWelcomeScreen rank={signupRank} onContinue={() => setView("app")} />
         ) : (
           <Onboarding
-            onComplete={(profileInfo) => {
-              setOnboardingProfile(profileInfo);
-              // Demo stand-in for a real signup counter: since this app has
-              // no backend tracking actual global sign-ups, each run of
-              // onboarding is treated as if it landed within the first 100 --
-              // there's no way to simulate a "real" running count without a
-              // persistent store. In a real system this would be a single
-              // incrementing counter read once at account creation, not
-              // randomized per session.
-              setSignupRank(Math.floor(Math.random() * 100) + 1);
-              setView("founderWelcome");
-            }}
-          />
+onComplete={async (profileInfo) => {
+  try {
+    const nameParts = profileInfo.fullName.trim().split(" ");
+    const firstName = nameParts[0];
+    const lastName =
+      nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+    const response = await fetch("http://localhost:3000/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        email:
+          profileInfo.contactMethod === "email"
+            ? profileInfo.contact
+            : undefined,
+        phone:
+          profileInfo.contactMethod === "phone"
+            ? profileInfo.contact
+            : undefined,
+        password: profileInfo.password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Unable to create account");
+      return;
+    }
+
+    const loginResponse = await fetch("http://localhost:3000/auth/login", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    email: profileInfo.contact,
+    password: profileInfo.password,
+  }),
+});
+
+const loginData = await loginResponse.json();
+
+if (!loginResponse.ok) {
+  alert(loginData.message || "Account created, but automatic login failed");
+  return;
+}
+
+localStorage.setItem("access_token", loginData.access_token);
+localStorage.setItem("user", JSON.stringify(loginData.user));
+
+setOnboardingProfile(loginData.user);
+setSignupRank(Math.floor(Math.random() * 100) + 1);
+setView("founderWelcome");
+  } catch (error) {
+    console.error("Registration error:", error);
+    alert(
+      "Unable to connect to REunited. Please make sure the backend is running."
+    );
+  }
+}}
+  onLoginComplete={(user) => {
+    setOnboardingProfile(user);
+    setView("app");
+  }}
+/>
         )}
       </div>
 
-      {/* Staff-only entry point -- deliberately understated, since regular
-          users should never notice this. In a real product this would be
-          gated by an actual admin role check, not a visible link at all. */}
-      {view !== "admin" && (
+      {/* Staff-only entry point. The backend still performs the
+          authoritative ADMIN role check for report approval. */}
+      {isAdmin && view !== "admin" && (
         <button
           onClick={() => setView("admin")}
           className="amr-root text-xs mt-4"
