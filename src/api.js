@@ -1,6 +1,6 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:3000";
+  "https://reunited-api.onrender.com";
 
 function getToken() {
   return localStorage.getItem("access_token");
@@ -665,3 +665,4 @@ export async function reviewAdminUserReport(
 
   return handleResponse(response);
 }
+
