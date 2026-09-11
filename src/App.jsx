@@ -11937,7 +11937,7 @@ setView("founderWelcome");
 
       {/* Staff-only entry point. The backend still performs the
           authoritative ADMIN role check for report approval. */}
-      {isAdmin && view !== "admin" && (
+      {isAdmin && view === "app" && localStorage.getItem("access_token") && (
         <button
           onClick={() => setView("admin")}
           className="amr-root text-xs mt-4"
@@ -11949,4 +11949,5 @@ setView("founderWelcome");
     </div>
   );
 }
+
 
