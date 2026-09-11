@@ -91,7 +91,9 @@ function HeartMark({ size = 24, color }) {
 // Change API_BASE if the backend is deployed somewhere other than your own
 // machine.
 // ---------------------------------------------------------------------------
-const API_BASE = import.meta.env.VITE_API_BASE_URL || `${API_BASE}`;
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://reunited-api.onrender.com";
 
 const PRIVACY_VERSION = "2026-09-11";
 const LOCATION_CONSENT_VERSION = "2026-09-11";
@@ -9807,9 +9809,9 @@ function WelcomeStep({ onContinue, onLogin }) {
   );
 }
 
-function Onboarding({ onComplete, onLoginComplete }) {
-  // welcome | login | contact | code | profileDetails | idType | idCapture | verifying | verified
-  const [stage, setStage] = useState("welcome");
+function Onboarding({ onComplete, onLoginComplete, initialStage = "welcome" }) {
+  // welcome | login | forgotPassword | contact | code | profileDetails | idType | idCapture | verifying | verified
+  const [stage, setStage] = useState(initialStage);
   const [contact, setContact] = useState("");
   const [contactMethod, setContactMethod] = useState("email");
   const [code, setCode] = useState("");
@@ -9832,6 +9834,7 @@ function Onboarding({ onComplete, onLoginComplete }) {
 {stage === "login" && (
   <LoginStep
     onBack={() => setStage("welcome")}
+    onForgotPassword={() => setStage("forgotPassword")}
     onLogin={async ({ email, password }) => {
       try {
         const response = await fetch(`${API_BASE}/auth/login`, {
@@ -9864,6 +9867,9 @@ function Onboarding({ onComplete, onLoginComplete }) {
       }
     }}
   />
+)}
+{stage === "forgotPassword" && (
+  <ForgotPasswordStep onBack={() => setStage("login")} />
 )}
       {stage === "contact" && (
         <ContactStep
@@ -9933,7 +9939,7 @@ function Onboarding({ onComplete, onLoginComplete }) {
   );
 }
 
-function LoginStep({ onBack, onLogin }) {
+function LoginStep({ onBack, onLogin, onForgotPassword }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -9985,6 +9991,265 @@ function LoginStep({ onBack, onLogin }) {
         className="amr-btn-primary w-full py-3 rounded-md"
       >
         Log In
+      </button>
+
+      <div className="text-center mt-4">
+        <button
+          type="button"
+          onClick={onForgotPassword}
+          className="text-sm font-semibold"
+          style={{ color: "#2F6E62" }}
+        >
+          Forgot password?
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ForgotPasswordStep({ onBack }) {
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const isValidEmail = /\S+@\S+\.\S+/.test(email);
+
+  const sendResetLink = async () => {
+    if (!isValidEmail || submitting) return;
+
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const reason = Array.isArray(data?.message)
+          ? data.message.join(" ")
+          : data?.message;
+        throw new Error(reason || "Unable to send password reset email.");
+      }
+
+      setMessage(
+        data?.message ||
+          "If an account exists for this email, password reset instructions have been sent.",
+      );
+    } catch (err) {
+      setError(err?.message || "Unable to send password reset email. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      <OnboardingHeader onBack={onBack} />
+
+      <div className="amr-display text-4xl leading-none mb-1">
+        RESET PASSWORD
+      </div>
+      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
+        Enter the email address connected to your REunited account.
+      </p>
+
+      <div className="font-semibold text-sm mb-1.5">Email</div>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+        autoComplete="email"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
+      />
+
+      {message && (
+        <div
+          className="rounded-md px-3 py-2 mb-4 text-sm"
+          style={{ background: "#DCEDE8", color: "#2F6E62" }}
+        >
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="rounded-md px-3 py-2 mb-4 text-sm"
+          style={{ background: "#FDE8E2", color: "#9B2C1F" }}
+        >
+          {error}
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={!isValidEmail || submitting}
+        onClick={sendResetLink}
+        className="amr-btn-primary w-full py-3 rounded-md"
+      >
+        {submitting ? "Sending…" : "Send Reset Link"}
+      </button>
+
+      <p className="text-xs mt-4 text-center" style={{ color: "#6B6459" }}>
+        For privacy, REunited gives the same response whether or not the email is registered.
+      </p>
+    </div>
+  );
+}
+
+function ResetPasswordScreen({ token, onDone }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const passwordsMatch = newPassword === confirmPassword;
+  const canSubmit =
+    Boolean(token) &&
+    newPassword.length >= 8 &&
+    newPassword.length <= 128 &&
+    passwordsMatch &&
+    !submitting;
+
+  const submitReset = async () => {
+    if (!canSubmit) return;
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          new_password: newPassword,
+        }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const reason = Array.isArray(data?.message)
+          ? data.message.join(" ")
+          : data?.message;
+        throw new Error(reason || "Invalid or expired password reset request.");
+      }
+
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user");
+      setSuccess(true);
+    } catch (err) {
+      setError(err?.message || "Unable to reset your password. Please request a new link.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <div>
+        <div className="flex justify-center mb-6">
+          <Wordmark size="text-3xl" />
+        </div>
+        <div className="amr-display text-4xl leading-none mb-2 text-center">
+          PASSWORD UPDATED
+        </div>
+        <p className="text-sm mb-6 text-center" style={{ color: "#6B6459" }}>
+          Your password was reset successfully. Sign in again using your new password.
+        </p>
+        <button
+          type="button"
+          onClick={onDone}
+          className="amr-btn-primary w-full py-3 rounded-md"
+        >
+          Back to Log In
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex justify-center mb-6">
+        <Wordmark size="text-3xl" />
+      </div>
+      <div className="amr-display text-4xl leading-none mb-1">
+        CREATE NEW PASSWORD
+      </div>
+      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
+        Choose a new password with at least 8 characters.
+      </p>
+
+      {!token && (
+        <div
+          className="rounded-md px-3 py-2 mb-4 text-sm"
+          style={{ background: "#FDE8E2", color: "#9B2C1F" }}
+        >
+          This reset link is missing its security token. Please request a new password reset email.
+        </div>
+      )}
+
+      <div className="font-semibold text-sm mb-1.5">New password</div>
+      <input
+        type="password"
+        value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)}
+        placeholder="At least 8 characters"
+        autoComplete="new-password"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
+      />
+
+      <div className="font-semibold text-sm mb-1.5">Confirm new password</div>
+      <input
+        type="password"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+        placeholder="Re-enter your new password"
+        autoComplete="new-password"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-2"
+      />
+
+      {confirmPassword && !passwordsMatch && (
+        <p className="text-xs mb-3" style={{ color: "#9B2C1F" }}>
+          Passwords do not match.
+        </p>
+      )}
+
+      {error && (
+        <div
+          className="rounded-md px-3 py-2 mb-4 text-sm"
+          style={{ background: "#FDE8E2", color: "#9B2C1F" }}
+        >
+          {error}
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={!canSubmit}
+        onClick={submitReset}
+        className="amr-btn-primary w-full py-3 rounded-md mt-3"
+      >
+        {submitting ? "Updating…" : "Update Password"}
       </button>
     </div>
   );
@@ -11421,7 +11686,17 @@ function FounderWelcomeScreen({ rank, onContinue }) {
 }
 
 export default function App() {
-  const [view, setView] = useState("onboarding"); // "onboarding" | "founderWelcome" | "app" | "admin"
+  const isPasswordResetRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/reset-password";
+  const resetToken = isPasswordResetRoute
+    ? new URLSearchParams(window.location.search).get("token") || ""
+    : "";
+
+  const [view, setView] = useState(
+    isPasswordResetRoute ? "resetPassword" : "onboarding",
+  ); // "onboarding" | "resetPassword" | "founderWelcome" | "app" | "admin"
+  const [onboardingInitialStage, setOnboardingInitialStage] = useState("welcome");
   const [onboardingProfile, setOnboardingProfile] = useState(null); // { contact, contactMethod, fullName, address, emergencyContactName, emergencyContactPhone }
   let storedUser = null;
 
@@ -11559,7 +11834,16 @@ export default function App() {
       `}</style>
 
       <div className="amr-root w-full max-w-sm">
-        {view === "admin" && isAdmin ? (
+        {view === "resetPassword" ? (
+          <ResetPasswordScreen
+            token={resetToken}
+            onDone={() => {
+              window.history.replaceState({}, "", "/");
+              setOnboardingInitialStage("login");
+              setView("onboarding");
+            }}
+          />
+        ) : view === "admin" && isAdmin ? (
           <AdminDashboardScreen
             onExit={() => setView("app")}
             feedbackMessages={messagesByThread[ADMIN_FEEDBACK_THREAD_ID] || []}
@@ -11577,6 +11861,7 @@ export default function App() {
           <FounderWelcomeScreen rank={signupRank} onContinue={() => setView("app")} />
         ) : (
           <Onboarding
+initialStage={onboardingInitialStage}
 onComplete={async (profileInfo) => {
   try {
     const nameParts = profileInfo.fullName.trim().split(" ");
@@ -11664,5 +11949,3 @@ setView("founderWelcome");
     </div>
   );
 }
-
-
