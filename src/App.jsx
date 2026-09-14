@@ -8419,43 +8419,78 @@ function TabBar({
     { key: "profile", label: "Profile", icon: User },
   ];
 
-  return (
-    <div className="flex gap-1 mt-6 pt-4" style={{ borderTop: "2px solid #CBBFA0" }}>
-      {tabs.map((tab) => {
-        const Icon = tab.icon;
-        const isActive = screen === tab.key;
-        const showBadge =
-          tab.key === "notifications" &&
-          notificationUnreadCount > 0;
+  const tabButtons = tabs.map((tab) => {
+    const Icon = tab.icon;
+    const isActive = screen === tab.key;
+    const showBadge =
+      tab.key === "notifications" &&
+      notificationUnreadCount > 0;
 
-        return (
-          <button
-            key={tab.key}
-            onClick={() => setScreen(tab.key)}
-            className="flex-1 flex flex-col items-center gap-1 py-2 rounded-md text-xs font-semibold relative"
-            style={{
-              color: isActive ? "#20291F" : "#6B6459",
-              background: isActive ? "#DED2B4" : "transparent",
-            }}
-          >
-            <div className="relative">
-              <Icon size={18} />
-              {showBadge && (
-                <span
-                  className="absolute -top-2 -right-3 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center"
-                  style={{ background: "#E2572B", color: "#F2E9D8" }}
-                >
-                  {notificationUnreadCount > 99
-                    ? "99+"
-                    : notificationUnreadCount}
-                </span>
-              )}
-            </div>
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
+    return (
+      <button
+        key={tab.key}
+        onClick={() => setScreen(tab.key)}
+        className="flex-1 flex flex-col items-center gap-1 py-2 rounded-md text-xs font-semibold relative"
+        style={{
+          color: isActive ? "#20291F" : "#6B6459",
+          background: isActive ? "#DED2B4" : "transparent",
+        }}
+      >
+        <div className="relative">
+          <Icon size={18} />
+          {showBadge && (
+            <span
+              className="absolute -top-2 -right-3 min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center"
+              style={{ background: "#E2572B", color: "#F2E9D8" }}
+            >
+              {notificationUnreadCount > 99
+                ? "99+"
+                : notificationUnreadCount}
+            </span>
+          )}
+        </div>
+        {tab.label}
+      </button>
+    );
+  });
+
+  return (
+    <>
+      {/*
+        Invisible spacer, same shape as the real bar below (kept in normal
+        document flow). Without this, switching the real bar to fixed
+        positioning would remove the space it used to occupy, and the last
+        bit of every screen's content would end up hidden underneath it.
+        aria-hidden since it's purely a layout placeholder, not content.
+      */}
+      <div aria-hidden="true" className="flex gap-1 pt-4 invisible" style={{ borderTop: "2px solid transparent" }}>
+        {tabButtons}
+      </div>
+
+      {/*
+        The real tab bar. position: fixed pins it to the actual device
+        viewport regardless of scroll position -- this is what makes it
+        behave like a normal app's bottom nav instead of scrolling away
+        with page content. Horizontal safe-area padding matches the rest
+        of the app's edge handling; paddingBottom uses
+        env(safe-area-inset-bottom) so the buttons sit above the home-
+        indicator gesture bar on iPhones with no physical home button,
+        instead of underneath/behind it.
+      */}
+      <div
+        className="fixed left-0 right-0 flex gap-1 pt-4 z-50"
+        style={{
+          bottom: 0,
+          borderTop: "2px solid #CBBFA0",
+          background: "#EDE3CD",
+          paddingLeft: "max(1rem, env(safe-area-inset-left))",
+          paddingRight: "max(1rem, env(safe-area-inset-right))",
+          paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+        }}
+      >
+        {tabButtons}
+      </div>
+    </>
   );
 }
 
