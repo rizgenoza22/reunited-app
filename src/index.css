@@ -1,1 +1,14 @@
 @import "tailwindcss";
+/* Prevent iOS Safari/WKWebView from auto-zooming the page when an input
+   is focused. iOS triggers this zoom whenever a focused input's computed
+   font-size is under 16px -- Tailwind's text-sm (14px) used across our
+   login/register/profile forms falls just under that threshold. Forcing
+   16px here fixes the zoom without touching the visual size of the text
+   users actually see elsewhere (this only affects the moment of typing).
+   !important is needed to beat Tailwind's .text-sm utility class, which
+   has higher CSS specificity than a plain element selector. */
+input,
+select,
+textarea {
+  font-size: 16px !important;
+}
