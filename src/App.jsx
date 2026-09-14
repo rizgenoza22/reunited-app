@@ -1381,7 +1381,7 @@ function mapBackendHeroRecognition(item) {
 }
 
 
-function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByThread, onDeleteAccount }) {
+function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByThread, onDeleteAccount, onLogout }) {
   // home | details | review | active | trail | reportSighting | pendingSighting | reunite | reunited
   const [screen, setScreen] = useState("home");
   const [privacyConsents, setPrivacyConsents] = useState(null);
@@ -3952,6 +3952,7 @@ onRefreshNearby={loadNearbyAlerts}
           onPrivacyPolicy={() => setScreen("privacyPolicy")}
           onTerms={() => setScreen("terms")}
           onDeleteAccount={() => setScreen("deleteAccountStep1")}
+          onLogout={onLogout}
         />
       )}
       {screen === "privacyPolicy" && (
@@ -5281,7 +5282,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
   );
 }
 
-function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificationSettings, onPrivacyPolicy, onTerms, onDeleteAccount }) {
+function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificationSettings, onPrivacyPolicy, onTerms, onDeleteAccount, onLogout }) {
   return (
     <div>
       <ScreenHeader title="Settings" onBack={onBack} />
@@ -5304,6 +5305,15 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
           </button>
         ))}
       </div>
+
+      <button
+        onClick={onLogout}
+        className="w-full text-left flex items-center justify-between px-4 py-3 rounded-lg mb-5"
+        style={{ background: "#F2E9D8", border: "2px solid #20291F" }}
+      >
+        <span className="text-sm font-semibold">Log Out</span>
+        <ChevronRight size={16} color="#20291F" />
+      </button>
 
       <div className="font-semibold text-xs mb-2" style={{ color: "#6B6459" }}>ACCOUNT & PRIVACY</div>
       <div className="amr-panel rounded-lg mb-5 overflow-hidden">
@@ -12040,6 +12050,19 @@ export default function App() {
     }));
   }
 
+  // Logout: clears the session so this device stops being authenticated,
+  // without touching the account itself (unlike deleteAccount above, which
+  // this deliberately mirrors the cleanup of -- same local-state reset,
+  // no DELETE call, no confirmation dialog since it isn't destructive).
+  function logout() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    setOnboardingProfile(null);
+    setSignupRank(null);
+    setMessagesByThread({});
+    setView("onboarding");
+  }
+
   // Account deletion: MainApp unmounting on the view switch below discards
   // all of its internal state (pets, cases, sightings, etc.) automatically
   // -- what's left is clearing the App-level state that survives unmounts
@@ -12164,6 +12187,7 @@ export default function App() {
             messagesByThread={messagesByThread}
             setMessagesByThread={setMessagesByThread}
             onDeleteAccount={deleteAccount}
+            onLogout={logout}
           />
         ) : view === "founderWelcome" ? (
           <FounderWelcomeScreen rank={signupRank} onContinue={() => setView("app")} />
