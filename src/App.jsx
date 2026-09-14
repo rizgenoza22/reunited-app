@@ -3811,6 +3811,30 @@ const selectedPet = [
 
   return (
     <>
+      {/*
+        Global fixed header -- the REunited logo, present above every
+        screen in the app (not just the 5 tab roots), and pinned to the
+        actual device viewport so it never scrolls away, same technique as
+        the fixed bottom TabBar. Uses the compact "text-xs" logo size (28px
+        tall) since this now persists on every screen forever, not just as
+        a one-time splash -- the larger sizes elsewhere in the app would
+        eat too much permanent screen space. The spacer directly below
+        reserves that same space in normal document flow so it doesn't
+        cover the first bit of whatever screen renders beneath it.
+      */}
+      <div aria-hidden="true" className="invisible" style={{ height: 76 }} />
+      <div
+        className="fixed left-0 right-0 top-0 flex items-center justify-center z-40"
+        style={{
+          background: "#EDE3CD",
+          borderBottom: "2px solid #CBBFA0",
+          paddingTop: "max(0.6rem, env(safe-area-inset-top))",
+          paddingBottom: "0.6rem",
+        }}
+      >
+        <Wordmark size="text-xs" />
+      </div>
+
       {showLegalAcceptance && (
         <LegalAcceptanceModal
           onAccepted={async (data) => {
@@ -4362,6 +4386,7 @@ const REUNITED_LOGO_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAuEAAAF
 // classes the way text did, so each call site's intended size maps to an
 // explicit pixel height. Width is auto to preserve the logo's aspect ratio.
 const WORDMARK_HEIGHTS = {
+  "text-xs": 28,
   "text-base": 114,
   "text-xl": 150,
   "text-2xl": 186,
@@ -4391,9 +4416,6 @@ function ConfidenceBadge({ level }) {
 function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSearch, onOpenTrail, onAddPet, onOpenProfile }) {
   return (
     <div>
-      <div className="mb-6">
-        <Wordmark size="text-2xl" />
-      </div>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Your pets, safe at home or being searched for.
       </p>
@@ -4807,9 +4829,6 @@ function AlertsScreen({
   const [enlargedFoundPet, setEnlargedFoundPet] = useState(null);
   return (
     <div>
-      <div className="mb-4">
-        <Wordmark size="text-2xl" />
-      </div>
       <ScreenHeader title="Missing Pet Alerts" />
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Every active search nearby, yours and the community's.
@@ -5104,9 +5123,6 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
   const hasEmergencyContact = userProfile.emergencyContactName || userProfile.emergencyContactPhone;
   return (
     <div>
-      <div className="mb-4">
-        <Wordmark size="text-2xl" />
-      </div>
       <ScreenHeader title="Profile" />
 
       {signupRank && (
@@ -5621,9 +5637,6 @@ function NotificationsScreen({
 
   return (
     <div>
-      <div className="mb-4">
-        <Wordmark size="text-2xl" />
-      </div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="amr-display text-3xl leading-none">Inbox</div>
@@ -8527,9 +8540,6 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
   const [subTab, setSubTab] = useState("photos"); // "photos" | "stories"
   return (
     <div>
-      <div className="mb-4">
-        <Wordmark size="text-2xl" />
-      </div>
       <div className="flex items-center justify-between mb-1">
         <ScreenHeader title="Community" />
       </div>
