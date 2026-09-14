@@ -3811,34 +3811,6 @@ const selectedPet = [
 
   return (
     <>
-      {/*
-        Global fixed header -- the REunited logo, present above every
-        screen in the app (not just the 5 tab roots), and pinned to the
-        actual device viewport so it never scrolls away, same technique as
-        the fixed bottom TabBar. Uses the compact "text-xs" logo size (28px
-        tall) since this now persists on every screen forever, not just as
-        a one-time splash -- the larger sizes elsewhere in the app would
-        eat too much permanent screen space. The spacer directly below
-        reserves that same space in normal document flow so it doesn't
-        cover the first bit of whatever screen renders beneath it.
-      */}
-      <div aria-hidden="true" className="invisible" style={{ height: 110 }} />
-      <div
-        className="fixed left-0 right-0 top-0 flex items-center justify-center z-40"
-        style={{
-          background: "#EDE3CD",
-          borderBottom: "2px solid #CBBFA0",
-          paddingTop: "max(0.9rem, env(safe-area-inset-top))",
-          paddingBottom: "0.6rem",
-        }}
-      >
-        <img
-          src={REUNITED_LOGO_COMPACT_SRC}
-          alt="REunited"
-          style={{ height: 26, width: "auto", display: "inline-block" }}
-        />
-      </div>
-
       {showLegalAcceptance && (
         <LegalAcceptanceModal
           onAccepted={async (data) => {
@@ -4364,6 +4336,37 @@ function OwnerAlertBanner({ alert, onDismiss, onViewSighting }) {
   );
 }
 
+// Wraps a screen's own header content (logo, title text, whatever) so it
+// stays pinned to the top of the actual device viewport instead of
+// scrolling away with the rest of that screen's content -- same technique
+// as the fixed bottom TabBar: an invisible spacer of matching height keeps
+// the screen's own layout/scroll position correct, while the real copy is
+// position: fixed. Each screen using this gets its OWN header fixed to
+// itself (a title on Alerts, the logo on Home, etc) rather than one single
+// header shared across every screen.
+function FixedHeader({ children, height = 76 }) {
+  return (
+    <>
+      <div aria-hidden="true" className="invisible" style={{ height }}>
+        {children}
+      </div>
+      <div
+        className="fixed left-0 right-0 top-0 z-40"
+        style={{
+          background: "#EDE3CD",
+          borderBottom: "2px solid #CBBFA0",
+          paddingTop: "max(0.75rem, env(safe-area-inset-top))",
+          paddingBottom: "0.75rem",
+          paddingLeft: "max(1rem, env(safe-area-inset-left))",
+          paddingRight: "max(1rem, env(safe-area-inset-right))",
+        }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 function ScreenHeader({ title, onBack }) {
   return (
     <div className="flex items-center gap-3 mb-6">
@@ -4421,6 +4424,13 @@ function ConfidenceBadge({ level }) {
 function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSearch, onOpenTrail, onAddPet, onOpenProfile }) {
   return (
     <div>
+      <FixedHeader height={90}>
+        <img
+          src={REUNITED_LOGO_COMPACT_SRC}
+          alt="REunited"
+          style={{ height: 30, width: "auto", display: "inline-block" }}
+        />
+      </FixedHeader>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Your pets, safe at home or being searched for.
       </p>
@@ -4834,7 +4844,9 @@ function AlertsScreen({
   const [enlargedFoundPet, setEnlargedFoundPet] = useState(null);
   return (
     <div>
-      <ScreenHeader title="Missing Pet Alerts" />
+      <FixedHeader>
+        <ScreenHeader title="Missing Pet Alerts" />
+      </FixedHeader>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Every active search nearby, yours and the community's.
       </p>
@@ -5128,7 +5140,9 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
   const hasEmergencyContact = userProfile.emergencyContactName || userProfile.emergencyContactPhone;
   return (
     <div>
-      <ScreenHeader title="Profile" />
+      <FixedHeader>
+        <ScreenHeader title="Profile" />
+      </FixedHeader>
 
       {signupRank && (
         <div className="amr-panel rounded-lg p-4 mb-5">
@@ -5642,7 +5656,7 @@ function NotificationsScreen({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <FixedHeader>
         <div>
           <div className="amr-display text-3xl leading-none">Inbox</div>
           <div className="text-xs mt-1" style={{ color: "#6B6459" }}>
@@ -5651,7 +5665,7 @@ function NotificationsScreen({
               : "You're all caught up"}
           </div>
         </div>
-      </div>
+      </FixedHeader>
 
       <div className="amr-panel rounded-lg p-4 mb-5">
         <div className="flex items-start gap-3">
@@ -8545,9 +8559,9 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
   const [subTab, setSubTab] = useState("photos"); // "photos" | "stories"
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
+      <FixedHeader>
         <ScreenHeader title="Community" />
-      </div>
+      </FixedHeader>
       <p className="text-sm mb-4" style={{ color: "#6B6459" }}>
         Dogs of REunited, doing dog things — and the reunions that brought some of them home.
       </p>
