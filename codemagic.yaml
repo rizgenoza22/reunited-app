@@ -1,23 +1,17 @@
 workflows:
-
   ios-simulator-build:
     name: iOS Simulator Build (test)
     max_build_duration: 30
     instance_type: mac_mini_m2
-
     environment:
       node: 22
-
     scripts:
       - name: Install npm dependencies
         script: npm install
-
       - name: Build web app
         script: npm run build
-
       - name: Sync Capacitor iOS
         script: npx cap sync ios
-
       - name: Build for iOS Simulator
         script: |
           xcodebuild build \
@@ -25,59 +19,68 @@ workflows:
             -scheme "App" \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator'
-
     artifacts:
       - build/**/*.app
-
 
   ios-testflight-build:
     name: REunited iOS TestFlight
     max_build_duration: 60
     instance_type: mac_mini_m2
-
     integrations:
       app_store_connect: Codemagic REunited
-
     environment:
       node: 22
       xcode: latest
-
       ios_signing:
         provisioning_profiles:
           - reunited_app_store_p12_2
         certificates:
           - "REunited Distribution P12"
-
       vars:
         BUNDLE_ID: "com.reunited.ph"
         XCODE_PROJECT: "App.xcodeproj"
         XCODE_SCHEME: "App"
-
     scripts:
       - name: Install npm dependencies
         script: npm install
-
       - name: Build web app
         script: npm run build
-
       - name: Sync Capacitor iOS
         script: npx cap sync ios
-
       - name: Set up iOS code signing
         script: xcode-project use-profiles --project "$CM_BUILD_DIR/ios/App/App.xcodeproj"
-
+      # Added: Apple rejects any upload whose build number (CFBundleVersion)
+      # isn't strictly higher than every build already uploaded for this
+      # bundle ID -- including TestFlight-only builds, not just released App
+      # Store versions. This previously had to be bumped by hand in a commit
+      # each time (e.g. "Bump iOS build number to 4"), and forgetting to do
+      # so is exactly what caused the ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE
+      # failure on build 5. This step asks App Store Connect for the highest
+      # build number it has seen across both App Store and TestFlight, then
+      # sets this build to one higher than that -- automatically, every run.
+      - name: Increment build number
+        script: |
+          #!/bin/sh
+          cd "$CM_BUILD_DIR/ios/App"
+          LATEST_APP_STORE_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" || echo 0)
+          LATEST_TESTFLIGHT_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" || echo 0)
+          if [ "$LATEST_APP_STORE_BUILD_NUMBER" -gt "$LATEST_TESTFLIGHT_BUILD_NUMBER" ]; then
+            LATEST_BUILD_NUMBER=$LATEST_APP_STORE_BUILD_NUMBER
+          else
+            LATEST_BUILD_NUMBER=$LATEST_TESTFLIGHT_BUILD_NUMBER
+          fi
+          NEW_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          echo "Latest known build number: $LATEST_BUILD_NUMBER -- setting this build to $NEW_BUILD_NUMBER"
+          agvtool new-version -all "$NEW_BUILD_NUMBER"
       - name: Build signed IPA
         script: |
           cd "$CM_BUILD_DIR/ios/App"
-
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME"
-
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-
     publishing:
       app_store_connect:
         auth: integration
