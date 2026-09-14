@@ -6,6 +6,19 @@
 } from 'react';
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+// Both packages are real dependencies (not conditionally installed like
+// @capacitor/app elsewhere in this file), so static imports here are safe
+// for the web build too -- Capacitor's web shim for PushNotifications just
+// throws "not implemented" if ever called outside a native platform, which
+// never happens since every call site below is already gated on
+// Capacitor.isNativePlatform(). A real import is required, not optional:
+// a Capacitor plugin's window.Capacitor.Plugins.X bridge entry is only
+// populated once its own JS module actually runs (via registerPlugin()
+// inside it) -- reading window.Capacitor.Plugins.PushNotifications without
+// ever importing the package, as this used to do, left it permanently
+// undefined even with the plugin fully installed and synced natively.
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import {
   MapPin,
   ChevronLeft,
@@ -557,38 +570,35 @@ async function registerBrowserPushDevice() {
 }
 
 // Native push registration (iOS/Android via Capacitor's PushNotifications
-// plugin -- APNs on iOS, FCM on Android). Deliberately reads
-// window.Capacitor.Plugins.PushNotifications at runtime rather than a
-// static `import { PushNotifications } from '@capacitor/push-notifications'`,
-// for the same reason as the back-button handler below: that package isn't
-// part of this project yet, and a static import would break the web/preview
-// build until it's installed and the native projects are synced. Once
-// `@capacitor/push-notifications` is added and `npx cap sync` has run, this
-// becomes live automatically inside the real iOS/Android app; everywhere
-// else it throws and enablePushNotifications() falls back to
-// registerBrowserPushDevice below.
+// plugin -- APNs on iOS, FCM on Android). Uses the real imported
+// PushNotifications/Capacitor objects (see top-of-file imports) rather than
+// window.Capacitor.Plugins.PushNotifications -- a plugin's entry in
+// window.Capacitor.Plugins only gets populated once its own JS module has
+// actually run (via the registerPlugin() call inside it), so without a real
+// import this stayed permanently undefined even with the plugin fully
+// installed and synced into the native iOS/Android projects, silently
+// falling through to registerBrowserPushDevice below on every call.
 async function registerNativePushDevice() {
-  const push = window.Capacitor?.Plugins?.PushNotifications;
-  const platform = window.Capacitor?.getPlatform?.();
+  const platform = Capacitor.getPlatform();
 
-  if (!push || !platform || platform === "web") {
+  if (!Capacitor.isNativePlatform() || platform === "web") {
     throw new Error("Native push is not available in this environment.");
   }
 
-  let permStatus = await push.checkPermissions();
+  let permStatus = await PushNotifications.checkPermissions();
   if (permStatus.receive === "prompt") {
-    permStatus = await push.requestPermissions();
+    permStatus = await PushNotifications.requestPermissions();
   }
   if (permStatus.receive !== "granted") {
     throw new Error("Push notification permission was not granted.");
   }
 
   const deviceToken = await new Promise((resolve, reject) => {
-    push.addListener("registration", (token) => resolve(token.value));
-    push.addListener("registrationError", (err) =>
+    PushNotifications.addListener("registration", (token) => resolve(token.value));
+    PushNotifications.addListener("registrationError", (err) =>
       reject(new Error(err?.error || "Native push registration failed.")),
     );
-    push.register();
+    PushNotifications.register();
   });
 
   const token = localStorage.getItem("access_token");
@@ -3286,7 +3296,7 @@ const selectedPet = [
       // branch, the native app would silently try Web Push, which WKWebView
       // (iOS) and Capacitor's Android WebView don't support at all -- so
       // "enable alerts" would fail for every real App Store user.
-      const isNative = window.Capacitor?.isNativePlatform?.();
+      const isNative = Capacitor.isNativePlatform();
 
       if (isNative) {
         await registerNativePushDevice();
