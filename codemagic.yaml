@@ -38,6 +38,16 @@ workflows:
           - "REunited Distribution P12"
       vars:
         BUNDLE_ID: "com.reunited.ph"
+        # The numeric App Store Connect app ID for REunited (distinct from
+        # the bundle identifier above) -- visible in App Store Connect's own
+        # URLs, and in the app-argument metadata on the app's public GitHub
+        # pages: app-id=1477376905. get-latest-app-store-build-number and
+        # get-latest-testflight-build-number both query
+        # /v1/apps/{APP_ID}/... and need this numeric ID specifically; passing
+        # the bundle identifier there 404s ("no resource of type 'apps' with
+        # id 'com.reunited.ph'"), which is what silently zeroed out both
+        # lookups last run and reset the build number to 1.
+        APP_STORE_CONNECT_APP_ID: "1477376905"
         XCODE_PROJECT: "App.xcodeproj"
         XCODE_SCHEME: "App"
     scripts:
@@ -49,21 +59,13 @@ workflows:
         script: npx cap sync ios
       - name: Set up iOS code signing
         script: xcode-project use-profiles --project "$CM_BUILD_DIR/ios/App/App.xcodeproj"
-      # Added: Apple rejects any upload whose build number (CFBundleVersion)
-      # isn't strictly higher than every build already uploaded for this
-      # bundle ID -- including TestFlight-only builds, not just released App
-      # Store versions. This previously had to be bumped by hand in a commit
-      # each time (e.g. "Bump iOS build number to 4"), and forgetting to do
-      # so is exactly what caused the ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE
-      # failure on build 5. This step asks App Store Connect for the highest
-      # build number it has seen across both App Store and TestFlight, then
-      # sets this build to one higher than that -- automatically, every run.
       - name: Increment build number
         script: |
           #!/bin/sh
+          set -e
           cd "$CM_BUILD_DIR/ios/App"
-          LATEST_APP_STORE_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" || echo 0)
-          LATEST_TESTFLIGHT_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" || echo 0)
+          LATEST_APP_STORE_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_CONNECT_APP_ID")
+          LATEST_TESTFLIGHT_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_CONNECT_APP_ID")
           if [ "$LATEST_APP_STORE_BUILD_NUMBER" -gt "$LATEST_TESTFLIGHT_BUILD_NUMBER" ]; then
             LATEST_BUILD_NUMBER=$LATEST_APP_STORE_BUILD_NUMBER
           else
