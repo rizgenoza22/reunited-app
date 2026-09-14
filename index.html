@@ -1,13 +1,21 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>reunited-app</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<!--
+  maximum-scale=1.0 and user-scalable=no lock the viewport so nothing can
+  zoom it -- neither iOS's auto-zoom-on-input-focus (belt-and-suspenders
+  with the 16px input font-size fix in index.css) nor accidental pinch
+  gestures during normal use. Standard for a native-feeling Capacitor app;
+  the web build loses pinch-zoom-to-read-small-text as a side effect, which
+  is an acceptable tradeoff here since the native app is the primary target.
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>REunited</title>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
+</body>
 </html>
