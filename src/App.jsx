@@ -4344,7 +4344,7 @@ function OwnerAlertBanner({ alert, onDismiss, onViewSighting }) {
 // position: fixed. Each screen using this gets its OWN header fixed to
 // itself (a title on Alerts, the logo on Home, etc) rather than one single
 // header shared across every screen.
-function FixedHeader({ children, height = 76 }) {
+function FixedHeader({ children, height = 130 }) {
   return (
     <>
       <div aria-hidden="true" className="invisible" style={{ height }}>
@@ -4355,7 +4355,13 @@ function FixedHeader({ children, height = 76 }) {
         style={{
           background: "#EDE3CD",
           borderBottom: "2px solid #CBBFA0",
-          paddingTop: "max(0.75rem, env(safe-area-inset-top))",
+          // A fixed 64px minimum, not just env(safe-area-inset-top), because
+          // that env() value has proven unreliable in this Capacitor/WKWebView
+          // setup -- it wasn't clearing the status bar/Dynamic Island even
+          // with viewport-fit=cover set on the page. 64px comfortably clears
+          // every current iPhone's status bar on its own; env() is kept as a
+          // courtesy on top of that minimum for devices where it does work.
+          paddingTop: "max(64px, env(safe-area-inset-top))",
           paddingBottom: "0.75rem",
           paddingLeft: "max(1rem, env(safe-area-inset-left))",
           paddingRight: "max(1rem, env(safe-area-inset-right))",
@@ -4424,7 +4430,7 @@ function ConfidenceBadge({ level }) {
 function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSearch, onOpenTrail, onAddPet, onOpenProfile }) {
   return (
     <div>
-      <FixedHeader height={90}>
+      <FixedHeader height={140}>
         <img
           src={REUNITED_LOGO_COMPACT_SRC}
           alt="REunited"
