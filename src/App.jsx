@@ -4807,6 +4807,9 @@ function AlertsScreen({
   const [enlargedFoundPet, setEnlargedFoundPet] = useState(null);
   return (
     <div>
+      <div className="mb-4">
+        <Wordmark size="text-2xl" />
+      </div>
       <ScreenHeader title="Missing Pet Alerts" />
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Every active search nearby, yours and the community's.
@@ -5101,6 +5104,9 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
   const hasEmergencyContact = userProfile.emergencyContactName || userProfile.emergencyContactPhone;
   return (
     <div>
+      <div className="mb-4">
+        <Wordmark size="text-2xl" />
+      </div>
       <ScreenHeader title="Profile" />
 
       {signupRank && (
@@ -5615,6 +5621,9 @@ function NotificationsScreen({
 
   return (
     <div>
+      <div className="mb-4">
+        <Wordmark size="text-2xl" />
+      </div>
       <div className="flex items-center justify-between mb-4">
         <div>
           <div className="amr-display text-3xl leading-none">Inbox</div>
@@ -8518,6 +8527,9 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
   const [subTab, setSubTab] = useState("photos"); // "photos" | "stories"
   return (
     <div>
+      <div className="mb-4">
+        <Wordmark size="text-2xl" />
+      </div>
       <div className="flex items-center justify-between mb-1">
         <ScreenHeader title="Community" />
       </div>
