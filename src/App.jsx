@@ -59,6 +59,11 @@ import {
   getMessageThreads,
   getPets,
   createPet,
+  addPetPhotos,
+  replacePetPhoto,
+  deletePetPhoto,
+  reorderPetPhotos,
+  setPrimaryPetPhoto,
   reportPetMissing,
   getReports,
   getReport,
@@ -1307,6 +1312,37 @@ function mapBackendPet(pet, index = 0) {
   const backendPetId = Number(pet.pet_id);
   const status = String(pet.status || "HOME").toUpperCase();
 
+  const backendPhotoRows = Array.isArray(pet.photos)
+    ? [...pet.photos]
+        .filter((photo) => photo?.photo_url)
+        .sort(
+          (a, b) =>
+            Number(a.sort_order ?? 0) -
+            Number(b.sort_order ?? 0),
+        )
+    : [];
+
+  const primaryRow =
+    backendPhotoRows.find((photo) => photo.is_primary) ||
+    backendPhotoRows[0] ||
+    null;
+
+  const photoRecords = backendPhotoRows.map((photo) => ({
+    id: Number(photo.photo_id),
+    url: photo.photo_url,
+    sortOrder: Number(photo.sort_order ?? 0),
+    isPrimary:
+      primaryRow != null &&
+      Number(primaryRow.photo_id) === Number(photo.photo_id),
+  }));
+
+  const photoUrls =
+    photoRecords.length > 0
+      ? photoRecords.map((photo) => photo.url)
+      : pet.photo_url
+        ? [pet.photo_url]
+        : [];
+
   return {
     id: `pet-${backendPetId}`,
     backendPetId,
@@ -1321,7 +1357,8 @@ function mapBackendPet(pet, index = 0) {
     birthday: pet.birth_date || "",
     primaryColor: pet.color || "",
     markings: pet.description || "",
-    photos: pet.photo_url ? [pet.photo_url] : [],
+    photos: photoUrls,
+    photoRecords,
     microchipNumber: pet.microchip_number || "",
     backendStatus: status,
   };
@@ -2964,10 +3001,10 @@ const selectedPet = [
   }
 
   async function addPet(newPet) {
-    const primaryPhoto =
-      Array.isArray(newPet.photos) && newPet.photos.length > 0
-        ? newPet.photos[0]
-        : null;
+    const photoFiles =
+      Array.isArray(newPet.photos)
+        ? newPet.photos.slice(0, MAX_PET_PHOTOS)
+        : [];
 
     const saved = await createPet(
       {
@@ -2985,7 +3022,7 @@ const selectedPet = [
             ? newPet.microchipNumber
             : undefined,
       },
-      primaryPhoto,
+      photoFiles,
     );
 
     const mappedPet = mapBackendPet(
@@ -2994,9 +3031,93 @@ const selectedPet = [
     );
 
     setPets((prev) => [mappedPet, ...prev]);
-    setScreen("home");
+    setSelectedPetId(mappedPet.id);
+    setScreen("petProfile");
 
     return mappedPet;
+  }
+
+  function applyUpdatedPet(updatedBackendPet) {
+    const backendPetId = Number(updatedBackendPet.pet_id);
+
+    setPets((current) =>
+      current.map((item, index) =>
+        Number(item.backendPetId) === backendPetId
+          ? mapBackendPet(updatedBackendPet, index)
+          : item,
+      ),
+    );
+  }
+
+  async function addPhotosToPet(files) {
+    if (!selectedPet?.backendPetId) {
+      throw new Error("Pet record is not available.");
+    }
+
+    const updated = await addPetPhotos(
+      selectedPet.backendPetId,
+      files,
+    );
+
+    applyUpdatedPet(updated);
+    return updated;
+  }
+
+  async function replacePhotoForPet(photoId, file) {
+    if (!selectedPet?.backendPetId) {
+      throw new Error("Pet record is not available.");
+    }
+
+    const updated = await replacePetPhoto(
+      selectedPet.backendPetId,
+      photoId,
+      file,
+    );
+
+    applyUpdatedPet(updated);
+    return updated;
+  }
+
+  async function removePhotoFromPet(photoId) {
+    if (!selectedPet?.backendPetId) {
+      throw new Error("Pet record is not available.");
+    }
+
+    const updated = await deletePetPhoto(
+      selectedPet.backendPetId,
+      photoId,
+    );
+
+    applyUpdatedPet(updated);
+    return updated;
+  }
+
+  async function reorderPhotosForPet(photoIds) {
+    if (!selectedPet?.backendPetId) {
+      throw new Error("Pet record is not available.");
+    }
+
+    const updated = await reorderPetPhotos(
+      selectedPet.backendPetId,
+      photoIds,
+    );
+
+    applyUpdatedPet(updated);
+    return updated;
+  }
+
+  async function makePrimaryPhotoForPet(photoId) {
+    if (!selectedPet?.backendPetId) {
+      throw new Error("Pet record is not available.");
+    }
+
+    const updated = await setPrimaryPetPhoto(
+      selectedPet.backendPetId,
+      photoId,
+    );
+
+    applyUpdatedPet(updated);
+    return updated;
   }
 
   // Generic message thread -- works for a sighting reporter (from a Trail)
@@ -4043,6 +4164,18 @@ onRefreshNearby={loadNearbyAlerts}
           onViewTrail={() => openTrail(selectedPet.id)}
           onReportSighting={() => openReportSighting(selectedPet.id)}
           onReportMissing={() => startReport(selectedPet.id)}
+          onEditPhotos={() => setScreen("editPetPhotos")}
+        />
+      )}
+      {screen === "editPetPhotos" && selectedPet && isOwnPet && (
+        <EditPetPhotosScreen
+          pet={selectedPet}
+          onBack={() => setScreen("petProfile")}
+          onAddPhotos={addPhotosToPet}
+          onReplacePhoto={replacePhotoForPet}
+          onDeletePhoto={removePhotoFromPet}
+          onReorderPhotos={reorderPhotosForPet}
+          onSetPrimary={makePrimaryPhotoForPet}
         />
       )}
       {screen === "feed" && (
@@ -4544,7 +4677,7 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSe
   );
 }
 
-const MAX_PET_PHOTOS = 1;
+const MAX_PET_PHOTOS = 5;
 const PET_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const PET_PHOTO_ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -4586,50 +4719,54 @@ function AddPetScreen({ onBack, onSave }) {
   }
 
   function choosePhoto(event) {
-    const file = event.target.files?.[0] || null;
+    const selectedFiles = Array.from(event.target.files || []);
 
     // Allow choosing the same file again after removing it.
     event.target.value = "";
 
-    if (!file) {
+    if (selectedFiles.length === 0) {
       return;
     }
 
     setSaveError(null);
 
-    if (!PET_PHOTO_ALLOWED_TYPES.has(file.type)) {
-      setSaveError(
-        "Please choose a JPG, PNG, or WEBP image.",
-      );
-      return;
+    const remainingSlots =
+      MAX_PET_PHOTOS - photos.length;
+
+    const candidateFiles =
+      selectedFiles.slice(0, remainingSlots);
+
+    for (const file of candidateFiles) {
+      if (!PET_PHOTO_ALLOWED_TYPES.has(file.type)) {
+        setSaveError(
+          "Only JPG, PNG, and WEBP images are allowed.",
+        );
+        return;
+      }
+
+      if (file.size > PET_PHOTO_MAX_BYTES) {
+        setSaveError(
+          "Each pet photo must be 5 MB or smaller.",
+        );
+        return;
+      }
     }
 
-    if (file.size > PET_PHOTO_MAX_BYTES) {
-      setSaveError(
-        "Pet photo must be 5 MB or smaller.",
-      );
-      return;
-    }
+    const additions = candidateFiles.map((file) => {
+      const previewUrl = URL.createObjectURL(file);
+      previewUrlsRef.current.add(previewUrl);
 
-    const previewUrl = URL.createObjectURL(file);
-    previewUrlsRef.current.add(previewUrl);
-
-    setPhotos((current) => {
-      current.forEach((photo) => {
-        if (photo.previewUrl) {
-          URL.revokeObjectURL(photo.previewUrl);
-          previewUrlsRef.current.delete(photo.previewUrl);
-        }
-      });
-
-      return [
-        {
-          file,
-          previewUrl,
-          name: file.name,
-        },
-      ];
+      return {
+        file,
+        previewUrl,
+        name: file.name,
+      };
     });
+
+    setPhotos((current) => [
+      ...current,
+      ...additions,
+    ]);
   }
 
   function removePhoto(index) {
@@ -4694,13 +4831,14 @@ function AddPetScreen({ onBack, onSave }) {
         Pet photo
       </div>
       <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
-        Add one clear JPG, PNG, or WEBP photo (maximum 5 MB). This becomes your pet&apos;s profile and missing-alert photo.
+        Add up to 5 JPG, PNG, or WEBP photos (maximum 5 MB each). The first photo becomes the primary profile and missing-alert photo.
       </p>
 
       <input
         ref={photoInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        multiple
         onChange={choosePhoto}
         className="hidden"
         disabled={saving}
@@ -4751,7 +4889,7 @@ function AddPetScreen({ onBack, onSave }) {
           >
             <Camera size={22} />
             <span className="text-xs font-semibold">
-              Choose photo
+              Add photos
             </span>
           </button>
         )}
@@ -6420,7 +6558,352 @@ function ReunionStoryScreen({ story, onBack }) {
   );
 }
 
-function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onViewTrail, onReportSighting, onReportMissing }) {
+
+function EditPetPhotosScreen({
+  pet,
+  onBack,
+  onAddPhotos,
+  onReplacePhoto,
+  onDeletePhoto,
+  onReorderPhotos,
+  onSetPrimary,
+}) {
+  const addInputRef = useRef(null);
+  const replaceInputRef = useRef(null);
+  const [replacePhotoId, setReplacePhotoId] = useState(null);
+  const [busyAction, setBusyAction] = useState(null);
+  const [error, setError] = useState(null);
+
+  const records = Array.isArray(pet.photoRecords)
+    ? [...pet.photoRecords].sort(
+        (a, b) => a.sortOrder - b.sortOrder,
+      )
+    : [];
+
+  const slotsLeft = Math.max(
+    0,
+    MAX_PET_PHOTOS - records.length,
+  );
+
+  function validatePhoto(file) {
+    if (!file) return "Choose an image.";
+
+    if (!PET_PHOTO_ALLOWED_TYPES.has(file.type)) {
+      return "Only JPG, PNG, and WEBP images are allowed.";
+    }
+
+    if (file.size > PET_PHOTO_MAX_BYTES) {
+      return "Each pet photo must be 5 MB or smaller.";
+    }
+
+    return null;
+  }
+
+  async function handleAdd(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+
+    if (files.length === 0) return;
+
+    if (files.length > slotsLeft) {
+      setError(
+        `You can add only ${slotsLeft} more photo${slotsLeft === 1 ? "" : "s"}.`,
+      );
+      return;
+    }
+
+    for (const file of files) {
+      const validationError = validatePhoto(file);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
+
+    setBusyAction("add");
+    setError(null);
+
+    try {
+      await onAddPhotos(files);
+    } catch (actionError) {
+      setError(
+        actionError.message || "Unable to add photos.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function chooseReplacement(photoId) {
+    if (busyAction) return;
+
+    setReplacePhotoId(photoId);
+    replaceInputRef.current?.click();
+  }
+
+  async function handleReplacement(event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+
+    if (!file || !replacePhotoId) {
+      setReplacePhotoId(null);
+      return;
+    }
+
+    const validationError = validatePhoto(file);
+    if (validationError) {
+      setError(validationError);
+      setReplacePhotoId(null);
+      return;
+    }
+
+    const targetId = replacePhotoId;
+    setReplacePhotoId(null);
+    setBusyAction(`replace-${targetId}`);
+    setError(null);
+
+    try {
+      await onReplacePhoto(targetId, file);
+    } catch (actionError) {
+      setError(
+        actionError.message || "Unable to replace photo.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function deletePhoto(photoId) {
+    if (busyAction) return;
+
+    if (!window.confirm("Delete this pet photo?")) {
+      return;
+    }
+
+    setBusyAction(`delete-${photoId}`);
+    setError(null);
+
+    try {
+      await onDeletePhoto(photoId);
+    } catch (actionError) {
+      setError(
+        actionError.message || "Unable to delete photo.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function makePrimary(photoId) {
+    if (busyAction) return;
+
+    setBusyAction(`primary-${photoId}`);
+    setError(null);
+
+    try {
+      await onSetPrimary(photoId);
+    } catch (actionError) {
+      setError(
+        actionError.message || "Unable to set primary photo.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function movePhoto(index, direction) {
+    if (busyAction) return;
+
+    const targetIndex = index + direction;
+
+    if (
+      targetIndex < 0 ||
+      targetIndex >= records.length
+    ) {
+      return;
+    }
+
+    const reordered = [...records];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    setBusyAction("reorder");
+    setError(null);
+
+    try {
+      await onReorderPhotos(
+        reordered.map((photo) => photo.id),
+      );
+    } catch (actionError) {
+      setError(
+        actionError.message || "Unable to reorder photos.",
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  return (
+    <div>
+      <ScreenHeader
+        title={`Edit ${pet.name}'s Photos`}
+        onBack={onBack}
+      />
+
+      <p
+        className="text-sm mb-4"
+        style={{ color: "#6B6459" }}
+      >
+        Keep up to 5 photos. The primary photo is used for your pet&apos;s avatar and missing-pet profile.
+      </p>
+
+      <input
+        ref={addInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        onChange={handleAdd}
+        className="hidden"
+        disabled={Boolean(busyAction)}
+      />
+
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleReplacement}
+        className="hidden"
+        disabled={Boolean(busyAction)}
+      />
+
+      <div className="space-y-3 mb-4">
+        {records.map((photo, index) => (
+          <div
+            key={photo.id}
+            className="amr-panel rounded-lg p-3"
+          >
+            <div className="flex gap-3">
+              <img
+                src={photo.url}
+                alt={`${pet.name} photo ${index + 1}`}
+                className="w-24 h-24 rounded-lg object-cover shrink-0"
+              />
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-semibold">
+                    Photo {index + 1}
+                  </span>
+
+                  {photo.isPrimary && (
+                    <span
+                      className="text-xs px-2 py-1 rounded-full"
+                      style={{
+                        background: "#EDE3CD",
+                        color: "#2F6E62",
+                      }}
+                    >
+                      Primary
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {!photo.isPrimary && (
+                    <button
+                      type="button"
+                      onClick={() => makePrimary(photo.id)}
+                      disabled={Boolean(busyAction)}
+                      className="amr-btn-secondary py-2 rounded-md text-xs"
+                    >
+                      Make primary
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => chooseReplacement(photo.id)}
+                    disabled={Boolean(busyAction)}
+                    className="amr-btn-secondary py-2 rounded-md text-xs"
+                  >
+                    Replace
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => movePhoto(index, -1)}
+                    disabled={Boolean(busyAction) || index === 0}
+                    className="amr-btn-secondary py-2 rounded-md text-xs"
+                  >
+                    Move left
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => movePhoto(index, 1)}
+                    disabled={
+                      Boolean(busyAction) ||
+                      index === records.length - 1
+                    }
+                    className="amr-btn-secondary py-2 rounded-md text-xs"
+                  >
+                    Move right
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => deletePhoto(photo.id)}
+                    disabled={Boolean(busyAction)}
+                    className="py-2 rounded-md text-xs font-semibold"
+                    style={{
+                      border: "1px solid #B94A3F",
+                      color: "#B94A3F",
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {slotsLeft > 0 && (
+        <button
+          type="button"
+          onClick={() => addInputRef.current?.click()}
+          disabled={Boolean(busyAction)}
+          className="amr-btn-primary w-full py-3 rounded-md"
+        >
+          {busyAction === "add"
+            ? "Uploading..."
+            : `Add Photos (${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} left)`}
+        </button>
+      )}
+
+      {records.length >= MAX_PET_PHOTOS && (
+        <div
+          className="text-sm text-center py-3"
+          style={{ color: "#6B6459" }}
+        >
+          Maximum of 5 photos reached.
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="mt-3 text-sm"
+          style={{ color: "#B94A3F" }}
+        >
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onViewTrail, onReportSighting, onReportMissing, onEditPhotos }) {
   const photos = pet.photos && pet.photos.length > 0 ? pet.photos : [pet.color];
   const primaryPhoto =
     Array.isArray(pet.photos) && pet.photos.length > 0 && isRealPhoto(pet.photos[0])
@@ -6539,6 +7022,16 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
           )}
         </div>
       </div>
+
+      {isOwnPet && (
+        <button
+          type="button"
+          onClick={onEditPhotos}
+          className="amr-btn-secondary w-full py-2.5 rounded-md mb-4 text-sm"
+        >
+          Edit Pet Photos
+        </button>
+      )}
 
       <div className="text-sm mb-4" style={{ color: "#6B6459" }}>
         👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported

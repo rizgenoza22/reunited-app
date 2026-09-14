@@ -275,11 +275,14 @@ export async function getPets() {
   return handleResponse(response);
 }
 
-export async function createPet(data, file = null) {
-  // Add Pet supports both the legacy JSON request and a real image upload.
-  // When a photo is supplied, use multipart/form-data and let the browser
-  // generate the Content-Type boundary automatically.
-  if (file) {
+export async function createPet(data, files = []) {
+  const normalizedFiles = Array.isArray(files)
+    ? files.filter(Boolean).slice(0, 5)
+    : files
+      ? [files]
+      : [];
+
+  if (normalizedFiles.length > 0) {
     const formData = new FormData();
 
     Object.entries(data || {}).forEach(([key, value]) => {
@@ -292,7 +295,9 @@ export async function createPet(data, file = null) {
       }
     });
 
-    formData.append("file", file);
+    normalizedFiles.forEach((file) => {
+      formData.append("files", file);
+    });
 
     const response = await fetch(
       `${API_BASE_URL}/pets`,
@@ -317,6 +322,114 @@ export async function createPet(data, file = null) {
         ...authHeaders(),
       },
       body: JSON.stringify(data),
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function addPetPhotos(petId, files) {
+  const normalizedFiles = Array.isArray(files)
+    ? files.filter(Boolean).slice(0, 5)
+    : files
+      ? [files]
+      : [];
+
+  if (normalizedFiles.length === 0) {
+    throw new Error("Choose at least one photo.");
+  }
+
+  const formData = new FormData();
+
+  normalizedFiles.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${petId}/photos`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+      },
+      body: formData,
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function replacePetPhoto(
+  petId,
+  photoId,
+  file,
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${petId}/photos/${photoId}`,
+    {
+      method: "PATCH",
+      headers: {
+        ...authHeaders(),
+      },
+      body: formData,
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function deletePetPhoto(
+  petId,
+  photoId,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${petId}/photos/${photoId}`,
+    {
+      method: "DELETE",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function reorderPetPhotos(
+  petId,
+  photoIds,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${petId}/photos/order`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        photo_ids: photoIds,
+      }),
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function setPrimaryPetPhoto(
+  petId,
+  photoId,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${petId}/photos/${photoId}/primary`,
+    {
+      method: "PATCH",
+      headers: {
+        ...authHeaders(),
+      },
     },
   );
 
