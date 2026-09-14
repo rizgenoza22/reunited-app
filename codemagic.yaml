@@ -39,15 +39,14 @@ workflows:
       vars:
         BUNDLE_ID: "com.reunited.ph"
         # The numeric App Store Connect app ID for REunited (distinct from
-        # the bundle identifier above) -- visible in App Store Connect's own
-        # URLs, and in the app-argument metadata on the app's public GitHub
-        # pages: app-id=1477376905. get-latest-app-store-build-number and
-        # get-latest-testflight-build-number both query
-        # /v1/apps/{APP_ID}/... and need this numeric ID specifically; passing
-        # the bundle identifier there 404s ("no resource of type 'apps' with
-        # id 'com.reunited.ph'"), which is what silently zeroed out both
-        # lookups last run and reset the build number to 1.
-        APP_STORE_CONNECT_APP_ID: "1477376905"
+        # the bundle identifier above), confirmed directly from App Store
+        # Connect's App Information page. get-latest-app-store-build-number
+        # and get-latest-testflight-build-number both query
+        # /v1/apps/{APP_ID}/... and need this specific numeric ID -- an
+        # earlier guess at this value (a GitHub page-metadata tag unrelated
+        # to this app) 404'd, which is why this is now sourced directly from
+        # App Store Connect rather than inferred.
+        APP_STORE_CONNECT_APP_ID: "6809456193"
         XCODE_PROJECT: "App.xcodeproj"
         XCODE_SCHEME: "App"
     scripts:
