@@ -2964,21 +2964,29 @@ const selectedPet = [
   }
 
   async function addPet(newPet) {
-    const saved = await createPet({
-      name: newPet.name,
-      species: String(newPet.species || "").toUpperCase(),
-      breed: newPet.breed || undefined,
-      sex: newPet.sex
-        ? String(newPet.sex).toUpperCase()
-        : undefined,
-      color: newPet.primaryColor || undefined,
-      description: newPet.markings || undefined,
-      birth_date: newPet.birthday || undefined,
-      microchip_number:
-        newPet.microchipped && newPet.microchipNumber
-          ? newPet.microchipNumber
+    const primaryPhoto =
+      Array.isArray(newPet.photos) && newPet.photos.length > 0
+        ? newPet.photos[0]
+        : null;
+
+    const saved = await createPet(
+      {
+        name: newPet.name,
+        species: String(newPet.species || "").toUpperCase(),
+        breed: newPet.breed || undefined,
+        sex: newPet.sex
+          ? String(newPet.sex).toUpperCase()
           : undefined,
-    });
+        color: newPet.primaryColor || undefined,
+        description: newPet.markings || undefined,
+        birth_date: newPet.birthday || undefined,
+        microchip_number:
+          newPet.microchipped && newPet.microchipNumber
+            ? newPet.microchipNumber
+            : undefined,
+      },
+      primaryPhoto,
+    );
 
     const mappedPet = mapBackendPet(
       saved,
@@ -4536,10 +4544,16 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSe
   );
 }
 
-const MAX_PET_PHOTOS = 5;
+const MAX_PET_PHOTOS = 1;
+const PET_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const PET_PHOTO_ALLOWED_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 function AddPetScreen({ onBack, onSave }) {
-  const [photos, setPhotos] = useState([]); // array of colors, standing in for real photo bytes
+  const [photos, setPhotos] = useState([]);
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("Dog");
   const [breed, setBreed] = useState("");
@@ -4547,23 +4561,88 @@ function AddPetScreen({ onBack, onSave }) {
   const [birthday, setBirthday] = useState("");
   const [primaryColor, setPrimaryColor] = useState("");
   const [markings, setMarkings] = useState("");
-  const [microchipped, setMicrochipped] = useState(null); // "yes" | "no"
+  const [microchipped, setMicrochipped] = useState(null);
   const [microchipNumber, setMicrochipNumber] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const photoInputRef = useRef(null);
+  const previewUrlsRef = useRef(new Set());
+
+  useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      previewUrlsRef.current.clear();
+    };
+  }, []);
 
   function addPhoto() {
-    if (photos.length >= MAX_PET_PHOTOS) return;
-    const usedColors = new Set(photos);
-    const available = PET_AVATAR_COLORS.filter((c) => !usedColors.has(c));
-    const nextColor = (available.length > 0 ? available : PET_AVATAR_COLORS)[
-      Math.floor(Math.random() * (available.length > 0 ? available.length : PET_AVATAR_COLORS.length))
-    ];
-    setPhotos((prev) => [...prev, nextColor]);
+    if (saving || photos.length >= MAX_PET_PHOTOS) {
+      return;
+    }
+
+    photoInputRef.current?.click();
+  }
+
+  function choosePhoto(event) {
+    const file = event.target.files?.[0] || null;
+
+    // Allow choosing the same file again after removing it.
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setSaveError(null);
+
+    if (!PET_PHOTO_ALLOWED_TYPES.has(file.type)) {
+      setSaveError(
+        "Please choose a JPG, PNG, or WEBP image.",
+      );
+      return;
+    }
+
+    if (file.size > PET_PHOTO_MAX_BYTES) {
+      setSaveError(
+        "Pet photo must be 5 MB or smaller.",
+      );
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    previewUrlsRef.current.add(previewUrl);
+
+    setPhotos((current) => {
+      current.forEach((photo) => {
+        if (photo.previewUrl) {
+          URL.revokeObjectURL(photo.previewUrl);
+          previewUrlsRef.current.delete(photo.previewUrl);
+        }
+      });
+
+      return [
+        {
+          file,
+          previewUrl,
+          name: file.name,
+        },
+      ];
+    });
   }
 
   function removePhoto(index) {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotos((current) => {
+      const removed = current[index];
+
+      if (removed?.previewUrl) {
+        URL.revokeObjectURL(removed.previewUrl);
+        previewUrlsRef.current.delete(removed.previewUrl);
+      }
+
+      return current.filter((_, i) => i !== index);
+    });
   }
 
   const canSave =
@@ -4595,8 +4674,7 @@ function AddPetScreen({ onBack, onSave }) {
           microchipped === "yes"
             ? microchipNumber.trim()
             : null,
-        photos,
-        color: photos[0],
+        photos: photos.map((photo) => photo.file),
       });
     } catch (error) {
       console.error("Create pet error:", error);
@@ -4613,45 +4691,68 @@ function AddPetScreen({ onBack, onSave }) {
       <ScreenHeader title="Add Your Pet" onBack={onBack} />
 
       <div className="font-semibold text-sm mb-1.5">
-        Photos ({photos.length}/{MAX_PET_PHOTOS})
+        Pet photo
       </div>
       <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
-        Add a few angles — it helps neighbors recognize {name.trim() || "your pet"} if they're ever missing.
+        Add one clear JPG, PNG, or WEBP photo (maximum 5 MB). This becomes your pet&apos;s profile and missing-alert photo.
       </p>
+
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={choosePhoto}
+        className="hidden"
+        disabled={saving}
+      />
+
       <div className="flex gap-2 mb-6">
-        {photos.map((color, i) => (
+        {photos.map((photo, i) => (
           <div
-            key={i}
-            className="amr-fade-in relative w-14 h-14 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: color }}
+            key={photo.previewUrl}
+            className="amr-fade-in relative w-24 h-24 rounded-lg overflow-hidden shrink-0"
+            style={{
+              border: "1px solid #CBBFA0",
+              background: "#EDE3CD",
+            }}
           >
-            <HeartMark size={22} color="#F2E9D8" />
+            <img
+              src={photo.previewUrl}
+              alt={`${name.trim() || "Pet"} preview`}
+              className="w-full h-full object-cover"
+            />
             <button
+              type="button"
               onClick={() => removePhoto(i)}
               aria-label="Remove photo"
-              className="absolute -top-3 -right-3 w-11 h-11 rounded-full flex items-center justify-center"
+              className="absolute -top-1 -right-1 w-11 h-11 rounded-full flex items-center justify-center"
+              disabled={saving}
             >
-              {/* Visible badge stays small (matches the design); the button
-                  itself is the full 44px minimum tap target (iOS HIG / Android
-                  Material both require this) -- an invisible larger hit area
-                  around a small visual dot, same technique iOS's own delete
-                  badges use. */}
               <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: "#20291F", color: "#F2E9D8" }}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{
+                  background: "#20291F",
+                  color: "#F2E9D8",
+                }}
               >
                 ×
               </span>
             </button>
           </div>
         ))}
+
         {photos.length < MAX_PET_PHOTOS && (
           <button
+            type="button"
             onClick={addPhoto}
-            className="amr-map w-14 h-14 rounded-lg flex items-center justify-center shrink-0"
+            disabled={saving}
+            className="amr-map w-24 h-24 rounded-lg flex flex-col items-center justify-center shrink-0 gap-1"
             style={{ color: "#6B6459" }}
           >
-            <Camera size={18} />
+            <Camera size={22} />
+            <span className="text-xs font-semibold">
+              Choose photo
+            </span>
           </button>
         )}
       </div>
@@ -4710,7 +4811,9 @@ function AddPetScreen({ onBack, onSave }) {
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-1"
       />
       <p className="text-xs mb-4" style={{ color: "#6B6459" }}>
-        {birthday ? `Age: ${calculateAge(birthday)}` : "We'll calculate their age from this — an exact date isn't required, an estimate is fine."}
+        {birthday
+          ? `Age: ${calculateAge(birthday)}`
+          : "We'll calculate their age from this — an exact date isn't required, an estimate is fine."}
       </p>
 
       <div className="font-semibold text-sm mb-1.5">Primary color</div>
@@ -4738,17 +4841,23 @@ function AddPetScreen({ onBack, onSave }) {
       <div className="font-semibold text-sm mb-1.5">Microchipped?</div>
       <div className="flex gap-2 mb-4">
         <button
+          type="button"
           onClick={() => setMicrochipped("yes")}
-          className={`amr-chip flex-1 py-2 rounded-md text-sm ${microchipped === "yes" ? "amr-chip-active" : ""}`}
+          className={`amr-chip flex-1 py-2 rounded-md text-sm ${
+            microchipped === "yes" ? "amr-chip-active" : ""
+          }`}
         >
           Yes
         </button>
         <button
+          type="button"
           onClick={() => {
             setMicrochipped("no");
             setMicrochipNumber("");
           }}
-          className={`amr-chip flex-1 py-2 rounded-md text-sm ${microchipped === "no" ? "amr-chip-active" : ""}`}
+          className={`amr-chip flex-1 py-2 rounded-md text-sm ${
+            microchipped === "no" ? "amr-chip-active" : ""
+          }`}
         >
           No
         </button>
@@ -4782,11 +4891,12 @@ function AddPetScreen({ onBack, onSave }) {
       )}
 
       <button
+        type="button"
         disabled={!canSave || saving}
         onClick={save}
         className="amr-btn-primary w-full py-3 rounded-md mt-2"
       >
-        {saving ? "Saving Pet..." : "Save Pet"}
+        {saving ? "Uploading & Saving..." : "Save Pet"}
       </button>
     </div>
   );

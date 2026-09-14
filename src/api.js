@@ -275,7 +275,39 @@ export async function getPets() {
   return handleResponse(response);
 }
 
-export async function createPet(data) {
+export async function createPet(data, file = null) {
+  // Add Pet supports both the legacy JSON request and a real image upload.
+  // When a photo is supplied, use multipart/form-data and let the browser
+  // generate the Content-Type boundary automatically.
+  if (file) {
+    const formData = new FormData();
+
+    Object.entries(data || {}).forEach(([key, value]) => {
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+      ) {
+        formData.append(key, String(value));
+      }
+    });
+
+    formData.append("file", file);
+
+    const response = await fetch(
+      `${API_BASE_URL}/pets`,
+      {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+        },
+        body: formData,
+      },
+    );
+
+    return handleResponse(response);
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/pets`,
     {
