@@ -3822,13 +3822,13 @@ const selectedPet = [
         reserves that same space in normal document flow so it doesn't
         cover the first bit of whatever screen renders beneath it.
       */}
-      <div aria-hidden="true" className="invisible" style={{ height: 76 }} />
+      <div aria-hidden="true" className="invisible" style={{ height: 110 }} />
       <div
         className="fixed left-0 right-0 top-0 flex items-center justify-center z-40"
         style={{
           background: "#EDE3CD",
           borderBottom: "2px solid #CBBFA0",
-          paddingTop: "max(0.6rem, env(safe-area-inset-top))",
+          paddingTop: "max(0.9rem, env(safe-area-inset-top))",
           paddingBottom: "0.6rem",
         }}
       >
