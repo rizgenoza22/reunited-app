@@ -38,4 +38,33 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Location: nearby missing-pet alerts and last-seen location when
+      reporting a pet missing or reporting a sighting. COARSE is included
+      alongside FINE so the app still works if the user only grants
+      approximate location.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!--
+      Camera and photo picker: taking or choosing a photo of a pet when
+      reporting it missing, reporting a sighting, or reporting a found pet.
+      READ_MEDIA_IMAGES is the Android 13+ (API 33+) replacement for
+      READ_EXTERNAL_STORAGE; both are declared so the photo picker works
+      correctly across older and newer Android versions.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!--
+      Required on Android 13+ (API 33+) for push notifications to be shown
+      at all -- without this, the app can still register a device token and
+      the backend can still send, but the OS silently drops every
+      notification instead of displaying it.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
