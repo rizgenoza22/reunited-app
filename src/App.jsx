@@ -269,6 +269,8 @@ function LegalAcceptanceModal({ onAccepted }) {
 
         <label className="flex items-start gap-2 mb-3 text-sm">
           <input
+            id="legal-terms-checkbox"
+            name="acceptedTerms"
             type="checkbox"
             className="mt-1"
             checked={acceptedTerms}
@@ -283,6 +285,8 @@ function LegalAcceptanceModal({ onAccepted }) {
 
         <label className="flex items-start gap-2 mb-4 text-sm">
           <input
+            id="legal-guidelines-checkbox"
+            name="acceptedGuidelines"
             type="checkbox"
             className="mt-1"
             checked={acceptedGuidelines}
@@ -379,6 +383,8 @@ function PrivacyConsentModal({ onAccept, onCancel }) {
 
         <label className="flex items-start gap-2 mb-3 text-sm">
           <input
+            id="privacy-policy-checkbox"
+            name="acceptedPrivacy"
             type="checkbox"
             checked={acceptedPrivacy}
             onChange={(event) =>
@@ -393,6 +399,8 @@ function PrivacyConsentModal({ onAccept, onCancel }) {
 
         <label className="flex items-start gap-2 mb-4 text-sm">
           <input
+            id="privacy-location-checkbox"
+            name="acceptedLocation"
             type="checkbox"
             checked={acceptedLocation}
             onChange={(event) =>
@@ -523,6 +531,83 @@ async function registerBrowserPushDevice() {
       platform: "WEB",
       provider: "WEB_PUSH",
       device_id: `${navigator.userAgent.slice(0, 180)}|${window.location.origin}`,
+    }),
+  });
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      body?.message ||
+      body?.error ||
+      `Unable to register this device (${response.status})`;
+    throw new Error(
+      Array.isArray(message) ? message.join(", ") : String(message),
+    );
+  }
+
+  localStorage.setItem("reunited_push_registered", "true");
+
+  return body;
+}
+
+// Native push registration (iOS/Android via Capacitor's PushNotifications
+// plugin -- APNs on iOS, FCM on Android). Deliberately reads
+// window.Capacitor.Plugins.PushNotifications at runtime rather than a
+// static `import { PushNotifications } from '@capacitor/push-notifications'`,
+// for the same reason as the back-button handler below: that package isn't
+// part of this project yet, and a static import would break the web/preview
+// build until it's installed and the native projects are synced. Once
+// `@capacitor/push-notifications` is added and `npx cap sync` has run, this
+// becomes live automatically inside the real iOS/Android app; everywhere
+// else it throws and enablePushNotifications() falls back to
+// registerBrowserPushDevice below.
+async function registerNativePushDevice() {
+  const push = window.Capacitor?.Plugins?.PushNotifications;
+  const platform = window.Capacitor?.getPlatform?.();
+
+  if (!push || !platform || platform === "web") {
+    throw new Error("Native push is not available in this environment.");
+  }
+
+  let permStatus = await push.checkPermissions();
+  if (permStatus.receive === "prompt") {
+    permStatus = await push.requestPermissions();
+  }
+  if (permStatus.receive !== "granted") {
+    throw new Error("Push notification permission was not granted.");
+  }
+
+  const deviceToken = await new Promise((resolve, reject) => {
+    push.addListener("registration", (token) => resolve(token.value));
+    push.addListener("registrationError", (err) =>
+      reject(new Error(err?.error || "Native push registration failed.")),
+    );
+    push.register();
+  });
+
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  const response = await fetch(`${API_BASE}/notifications/push-devices`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      push_token: deviceToken,
+      platform: platform === "ios" ? "IOS" : "ANDROID",
+      provider: platform === "ios" ? "APNS" : "FCM",
+      device_id: `${platform}|${window.location.origin}`,
     }),
   });
 
@@ -3195,7 +3280,19 @@ const selectedPet = [
     setPushSetupError(null);
 
     try {
-      await registerBrowserPushDevice();
+      // Native app (iOS/Android via Capacitor) uses APNs/FCM through the
+      // PushNotifications plugin; a plain web build (or this running in a
+      // browser/preview) falls back to the Web Push API. Without this
+      // branch, the native app would silently try Web Push, which WKWebView
+      // (iOS) and Capacitor's Android WebView don't support at all -- so
+      // "enable alerts" would fail for every real App Store user.
+      const isNative = window.Capacitor?.isNativePlatform?.();
+
+      if (isNative) {
+        await registerNativePushDevice();
+      } else {
+        await registerBrowserPushDevice();
+      }
       setPushSetupStatus("registered");
     } catch (error) {
       console.error("Push registration error:", error);
@@ -4507,6 +4604,8 @@ function AddPetScreen({ onBack, onSave }) {
 
       <div className="font-semibold text-sm mb-1.5">Name</div>
       <input
+        id="pet-name"
+        name="petName"
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -4527,6 +4626,8 @@ function AddPetScreen({ onBack, onSave }) {
 
       <div className="font-semibold text-sm mb-1.5">Breed</div>
       <input
+        id="pet-breed"
+        name="petBreed"
         type="text"
         value={breed}
         onChange={(e) => setBreed(e.target.value)}
@@ -4546,6 +4647,8 @@ function AddPetScreen({ onBack, onSave }) {
 
       <div className="font-semibold text-sm mb-1.5">Birthday</div>
       <input
+        id="pet-birthday"
+        name="petBirthday"
         type="date"
         value={birthday}
         onChange={(e) => setBirthday(e.target.value)}
@@ -4558,6 +4661,8 @@ function AddPetScreen({ onBack, onSave }) {
 
       <div className="font-semibold text-sm mb-1.5">Primary color</div>
       <input
+        id="pet-color"
+        name="petColor"
         type="text"
         value={primaryColor}
         onChange={(e) => setPrimaryColor(e.target.value)}
@@ -4567,6 +4672,8 @@ function AddPetScreen({ onBack, onSave }) {
 
       <div className="font-semibold text-sm mb-1.5">Distinctive markings</div>
       <input
+        id="pet-markings"
+        name="petMarkings"
         type="text"
         value={markings}
         onChange={(e) => setMarkings(e.target.value)}
@@ -4597,6 +4704,8 @@ function AddPetScreen({ onBack, onSave }) {
         <div className="amr-fade-in mb-4">
           <div className="font-semibold text-sm mb-1.5">Microchip number</div>
           <input
+            id="pet-microchip"
+            name="petMicrochip"
             type="password"
             value={microchipNumber}
             onChange={(e) => setMicrochipNumber(e.target.value)}
@@ -5408,6 +5517,8 @@ function ChangePasswordScreen({ onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Current password</div>
       <input
+        id="current-password"
+        name="currentPassword"
         type="password"
         value={current}
         onChange={(e) => { setCurrent(e.target.value); setSaved(false); }}
@@ -5416,6 +5527,8 @@ function ChangePasswordScreen({ onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">New password</div>
       <input
+        id="new-password"
+        name="newPassword"
         type="password"
         value={next}
         onChange={(e) => { setNext(e.target.value); setSaved(false); }}
@@ -5425,6 +5538,8 @@ function ChangePasswordScreen({ onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Confirm new password</div>
       <input
+        id="confirm-new-password"
+        name="confirmNewPassword"
         type="password"
         value={confirm}
         onChange={(e) => { setConfirm(e.target.value); setSaved(false); }}
@@ -5898,6 +6013,8 @@ function DeleteAccountStep2Screen({ onBack, onConfirm }) {
       </p>
 
       <input
+        id="delete-confirm-text"
+        name="deleteConfirmText"
         type="text"
         value={confirmText}
         onChange={(e) => setConfirmText(e.target.value)}
@@ -5986,6 +6103,8 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Full name</div>
       <input
+        id="profile-full-name"
+        name="fullName"
         type="text"
         value={fullName}
         onChange={(e) => setFullName(e.target.value)}
@@ -5995,6 +6114,8 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Phone</div>
       <input
+        id="profile-phone"
+        name="phone"
         type="tel"
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
@@ -6004,6 +6125,8 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Email</div>
       <input
+        id="profile-email"
+        name="email"
         type="email"
         value={email}
         readOnly
@@ -6016,6 +6139,8 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Home address</div>
       <input
+        id="profile-address"
+        name="address"
         type="text"
         value={address}
         onChange={(e) => setAddress(e.target.value)}
@@ -6028,6 +6153,8 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Emergency contact name</div>
       <input
+        id="profile-emergency-contact-name"
+        name="emergencyContactName"
         type="text"
         value={emergencyContactName}
         onChange={(e) => setEmergencyContactName(e.target.value)}
@@ -6037,6 +6164,8 @@ function ProfileEditScreen({ userProfile, onSave, onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Emergency contact phone</div>
       <input
+        id="profile-emergency-contact-phone"
+        name="emergencyContactPhone"
         type="tel"
         value={emergencyContactPhone}
         onChange={(e) => setEmergencyContactPhone(e.target.value)}
@@ -6443,6 +6572,8 @@ function DetailsScreen({
       </div>
       {showCustomTime && (
         <input
+          id="sighting-custom-time"
+          name="customTime"
           type="datetime-local"
           value={customTime}
           onChange={(e) => setCustomTime(e.target.value)}
@@ -8077,6 +8208,8 @@ function MessageThreadScreen({
 
       <div className="flex gap-2">
         <input
+          id="message-draft"
+          name="messageDraft"
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -8704,6 +8837,8 @@ function FoundPetScreen({ onBack, onSubmit }) {
 
       <div className="font-semibold text-sm mb-1.5">Primary color (optional)</div>
       <input
+        id="found-pet-color"
+        name="foundPetColor"
         type="text"
         value={primaryColor}
         onChange={(e) => setPrimaryColor(e.target.value)}
@@ -9230,6 +9365,8 @@ function ReportSightingScreen({
       </div>
 
       <input
+        id="sighting-location-text"
+        name="sightingLocationText"
         type="text"
         value={locationText}
         onChange={(e) =>
@@ -9248,6 +9385,8 @@ function ReportSightingScreen({
       </div>
 
       <input
+        id="sighting-direction"
+        name="sightingDirection"
         type="text"
         value={direction}
         onChange={(e) =>
@@ -9292,6 +9431,8 @@ function ReportSightingScreen({
       </p>
 
       <input
+        id="sighting-photos"
+        name="sightingPhotos"
         type="file"
         accept="image/jpeg,image/png,image/webp"
         multiple
@@ -9964,6 +10105,8 @@ function LoginStep({ onBack, onLogin, onForgotPassword }) {
       </div>
 
       <input
+        id="login-email"
+        name="email"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -9977,6 +10120,8 @@ function LoginStep({ onBack, onLogin, onForgotPassword }) {
       </div>
 
       <input
+        id="login-password"
+        name="password"
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -10067,6 +10212,8 @@ function ForgotPasswordStep({ onBack }) {
 
       <div className="font-semibold text-sm mb-1.5">Email</div>
       <input
+        id="forgot-password-email"
+        name="email"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -10210,6 +10357,8 @@ function ResetPasswordScreen({ token, onDone }) {
 
       <div className="font-semibold text-sm mb-1.5">New password</div>
       <input
+        id="reset-new-password"
+        name="newPassword"
         type="password"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
@@ -10220,6 +10369,8 @@ function ResetPasswordScreen({ token, onDone }) {
 
       <div className="font-semibold text-sm mb-1.5">Confirm new password</div>
       <input
+        id="reset-confirm-password"
+        name="confirmPassword"
         type="password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -10364,6 +10515,8 @@ function ContactStep({
       </div>
 
       <input
+        id="onboarding-contact"
+        name="contact"
         type={contactMethod === "email" ? "email" : "tel"}
         value={contact}
         onChange={(e) => setContact(e.target.value)}
@@ -10507,6 +10660,8 @@ function CodeStep({
       </p>
 
       <input
+        id="onboarding-code"
+        name="verificationCode"
         type="text"
         inputMode="numeric"
         maxLength={6}
@@ -10567,6 +10722,8 @@ function ProfileDetailsStep({
 
       <div className="font-semibold text-sm mb-1.5">Full name</div>
       <input
+        id="onboarding-full-name"
+        name="fullName"
         type="text"
         value={fullName}
         onChange={(e) => setFullName(e.target.value)}
@@ -10577,6 +10734,8 @@ function ProfileDetailsStep({
       {/* PASSWORD - ADD THIS */}
 <div className="font-semibold text-sm mb-1.5">Password</div>
 <input
+  id="onboarding-password"
+  name="password"
   type="password"
   value={password}
   onChange={(e) => setPassword(e.target.value)}
@@ -10590,6 +10749,8 @@ function ProfileDetailsStep({
 
       <div className="font-semibold text-sm mb-1.5">Home address (optional)</div>
       <input
+        id="onboarding-address"
+        name="address"
         type="text"
         value={address}
         onChange={(e) => setAddress(e.target.value)}
@@ -10602,6 +10763,8 @@ function ProfileDetailsStep({
 
       <div className="font-semibold text-sm mb-1.5">Emergency contact name (optional)</div>
       <input
+        id="onboarding-emergency-contact-name"
+        name="emergencyContactName"
         type="text"
         value={emergencyContactName}
         onChange={(e) => setEmergencyContactName(e.target.value)}
@@ -10611,6 +10774,8 @@ function ProfileDetailsStep({
 
       <div className="font-semibold text-sm mb-1.5">Emergency contact phone (optional)</div>
       <input
+        id="onboarding-emergency-contact-phone"
+        name="emergencyContactPhone"
         type="tel"
         value={emergencyContactPhone}
         onChange={(e) => setEmergencyContactPhone(e.target.value)}
@@ -11482,6 +11647,8 @@ function MessagesDrilldown({ feedbackMessages, onSendReply }) {
       {feedbackMessages.length > 0 && (
         <div className="flex gap-2">
           <input
+            id="admin-message-draft"
+            name="adminMessageDraft"
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
