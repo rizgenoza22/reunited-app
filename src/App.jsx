@@ -6422,23 +6422,41 @@ function ReunionStoryScreen({ story, onBack }) {
 
 function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onViewTrail, onReportSighting, onReportMissing }) {
   const photos = pet.photos && pet.photos.length > 0 ? pet.photos : [pet.color];
+  const primaryPhoto =
+    Array.isArray(pet.photos) && pet.photos.length > 0 && isRealPhoto(pet.photos[0])
+      ? pet.photos[0]
+      : null;
+
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into photos, or null when closed
+
   return (
     <div>
       <ScreenHeader title={`${pet.name}'s Profile`} onBack={onBack} />
 
       <div className="flex gap-2 mb-5 overflow-x-auto">
-        {photos.map((color, i) => (
-          <button
-            key={i}
-            onClick={() => setLightboxIndex(i)}
-            className="w-20 h-20 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: color }}
-            aria-label="View photo"
-          >
-            <HeartMark size={30} color="#F2E9D8" />
-          </button>
-        ))}
+        {photos.map((photo, i) => {
+          const realPhoto = isRealPhoto(photo);
+
+          return (
+            <button
+              key={i}
+              onClick={() => setLightboxIndex(i)}
+              className="w-20 h-20 rounded-lg flex items-center justify-center shrink-0 overflow-hidden"
+              style={{ background: realPhoto ? "#F2E9D8" : photo }}
+              aria-label="View photo"
+            >
+              {realPhoto ? (
+                <img
+                  src={photo}
+                  alt={`${pet.name} photo ${i + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <HeartMark size={30} color="#F2E9D8" />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {lightboxIndex !== null && (
@@ -6454,11 +6472,20 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
       <div className="amr-panel rounded-lg p-4 mb-5">
         <div className="flex items-center gap-3 mb-3">
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shrink-0"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shrink-0 overflow-hidden"
             style={{ background: pet.color }}
           >
-            {pet.name[0]}
+            {primaryPhoto ? (
+              <img
+                src={primaryPhoto}
+                alt={pet.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              pet.name?.[0]?.toUpperCase()
+            )}
           </div>
+
           <div>
             <div className="font-semibold text-lg">{pet.name}</div>
             <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} · {pet.species}</div>
