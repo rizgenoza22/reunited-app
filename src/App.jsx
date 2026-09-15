@@ -10201,16 +10201,31 @@ function ReportSightingScreen({
         JPG, PNG or WEBP. Maximum 5 MB per photo.
       </p>
 
-      <input
-        id="sighting-photos"
-        name="sightingPhotos"
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        multiple
-        onChange={choosePhotos}
-        disabled={loading}
-        className="w-full mb-3"
-      />
+      <div className="grid grid-cols-2 gap-2">
+          <label className="amr-btn-secondary rounded-md py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer">
+            <Camera size={15} />
+            Take Photo
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              className="hidden"
+              onChange={choosePhotos}
+            />
+          </label>
+
+          <label className="amr-btn-secondary rounded-md py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer">
+            <Image size={15} />
+            Choose Gallery
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={choosePhotos}
+            />
+          </label>
+        </div>
 
       {photos.length > 0 && (
         <div className="flex flex-col gap-1 mb-4">
