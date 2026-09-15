@@ -10215,7 +10215,7 @@ function ReportSightingScreen({
           </label>
 
           <label className="amr-btn-secondary rounded-md py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer">
-            <Image size={15} />
+            <ImageIcon size={15} />
             Choose Gallery
             <input
               type="file"
