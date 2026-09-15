@@ -1358,6 +1358,11 @@ function mapBackendPet(pet, index = 0) {
     primaryColor: pet.color || "",
     markings: pet.description || "",
     photos: photoUrls,
+    primaryPhotoUrl:
+      primaryRow?.photo_url ||
+      pet.photo_url ||
+      photoUrls[0] ||
+      "",
     photoRecords,
     microchipNumber: pet.microchip_number || "",
     backendStatus: status,
@@ -6906,9 +6911,13 @@ function EditPetPhotosScreen({
 function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onViewTrail, onReportSighting, onReportMissing, onEditPhotos }) {
   const photos = pet.photos && pet.photos.length > 0 ? pet.photos : [pet.color];
   const primaryPhoto =
-    Array.isArray(pet.photos) && pet.photos.length > 0 && isRealPhoto(pet.photos[0])
-      ? pet.photos[0]
-      : null;
+    pet.primaryPhotoUrl && isRealPhoto(pet.primaryPhotoUrl)
+      ? pet.primaryPhotoUrl
+      : Array.isArray(pet.photos) &&
+          pet.photos.length > 0 &&
+          isRealPhoto(pet.photos[0])
+        ? pet.photos[0]
+        : null;
 
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into photos, or null when closed
 
