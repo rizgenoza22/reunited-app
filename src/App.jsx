@@ -8515,53 +8515,27 @@ function TrailScreen({
 
               {s.captureLat != null &&
                 s.captureLng != null && (
-                  <div className="mb-3">
+                  <div
+                    className="mb-3 rounded-md p-3"
+                    style={{
+                      background: "#F7F0E3",
+                      border: "1px solid #CBBFA0",
+                    }}
+                  >
                     <div
-                      className="text-xs font-semibold mb-2 flex items-center gap-1.5"
+                      className="text-xs font-semibold mb-1 flex items-center gap-1.5"
                       style={{ color: "#20291F" }}
                     >
                       <MapPin size={13} />
-                      Reported sighting location
+                      Reported sighting area
                     </div>
 
                     <div
-                      className="text-xs mb-2"
+                      className="text-xs"
                       style={{ color: "#6B6459" }}
                     >
-                      📍 {Number(s.captureLat).toFixed(6)}, {Number(s.captureLng).toFixed(6)}
+                      Exact GPS is hidden for privacy. The sighting is shown only as an approximate area within 1 km.
                     </div>
-
-                    <a
-                      href={`https://www.openstreetmap.org/?mlat=${encodeURIComponent(
-                        Number(s.captureLat),
-                      )}&mlon=${encodeURIComponent(
-                        Number(s.captureLng),
-                      )}#map=18/${encodeURIComponent(
-                        Number(s.captureLat),
-                      )}/${encodeURIComponent(
-                        Number(s.captureLng),
-                      )}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="amr-btn-secondary w-full py-1.5 rounded-md text-xs flex items-center justify-center gap-1.5"
-                    >
-                      <Navigation size={13} />
-                      Open sighting location on map
-                    </a>
-
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-                  Number(s.captureLat),
-                )},${encodeURIComponent(
-                  Number(s.captureLng),
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="amr-btn-secondary w-full py-2 rounded-md text-xs flex items-center justify-center gap-1.5 mt-2"
-              >
-                <Navigation size={13} />
-                Navigate to sighting
-              </a>
                   </div>
                 )}
 
@@ -10099,35 +10073,8 @@ function ReportSightingScreen({
           >
             ✓ Location captured
             <br />
-            {gps.lat.toFixed(6)},{" "}
-            {gps.lng.toFixed(6)}
-            <br />
-            {Number(gps.accuracy) > 0 ? (
-              <>
-                Accuracy: ±{Math.round(gps.accuracy)} m
-              </>
-            ) : (
-              <>Location selected on map</>
-            )}
+            Exact GPS is hidden. REunited will use only an approximate sighting area in the user interface.
           </div>
-
-          <a
-            href={`https://www.openstreetmap.org/?mlat=${encodeURIComponent(
-              gps.lat,
-            )}&mlon=${encodeURIComponent(
-              gps.lng,
-            )}#map=18/${encodeURIComponent(
-              gps.lat,
-            )}/${encodeURIComponent(
-              gps.lng,
-            )}`}
-            target="_blank"
-            rel="noreferrer"
-            className="amr-btn-secondary w-full py-2 rounded-md text-xs flex items-center justify-center gap-1.5 mt-2"
-          >
-            <MapPin size={14} />
-            View captured location on map
-          </a>
         </div>
       )}
 
