@@ -2424,8 +2424,15 @@ const selectedPet = [
             let photos = [];
 
             try {
+              const photoReportId =
+                Number(match.original_report_id) ||
+                Number(match.originalReportId) ||
+                Number(match.report_id) ||
+                Number(match.reportId) ||
+                reportId;
+
               const photoRows = await getSightingPhotos(
-                reportId,
+                photoReportId,
                 Number(match.sighting_id),
               );
               photos = (Array.isArray(photoRows) ? photoRows : [])
@@ -2451,8 +2458,10 @@ const selectedPet = [
             return {
               matchId: Number(match.match_id),
               sightingId: Number(match.sighting_id),
-              reportId: Number(match.report_id),
-              originalReportId: Number(match.original_report_id),
+              reportId: Number(match.report_id ?? match.reportId),
+              originalReportId: Number(
+                match.original_report_id ?? match.originalReportId,
+              ),
               status: String(match.match_status || "PENDING").toUpperCase(),
               distanceMeters:
                 match.distance_meters != null
