@@ -2301,61 +2301,90 @@ const selectedPet = [
             ? backendSightings.sightings
             : [];
 
-        const mappedSightings = rows.map((sighting) => ({
-          id: `backend-sighting-${sighting.sighting_id}`,
-          backendSightingId: Number(sighting.sighting_id),
-          reporterId:
-            sighting.reporter_id != null
-              ? Number(sighting.reporter_id)
-              : null,
-          reporterName:
-            publicDisplayName(
-              sighting.reporter_name ||
-              sighting.reporterName ||
-              "REunited member",
-            ),
-          distanceLabel:
-            sighting.location_text ||
-            sighting.locationText ||
-            "Location reported",
-          timeLabel: relativeTimeLabel(
-            sighting.sighted_at || sighting.created_at,
-          ),
-          confidence:
-            String(sighting.status || "").toUpperCase() === "VERIFIED"
-              ? "HIGH"
-              : String(sighting.status || "").toUpperCase() === "REJECTED"
-                ? "REJECTED"
-                : "PENDING",
-          ownerVerdict:
-            String(sighting.status || "").toUpperCase() === "VERIFIED"
-              ? "LIKELY_MATCH"
-              : String(sighting.status || "").toUpperCase() === "REJECTED"
-                ? "NOT_MY_PET"
-                : null,
-          signals: [
-            sighting.direction
-              ? `Direction: ${sighting.direction}`
-              : null,
-            sighting.description || null,
-          ].filter(Boolean),
-          photos: [],
-          photoColor: "#2F6E62",
-          comment: sighting.description || "",
-          captureLat:
-            sighting.capture_lat ??
-            sighting.captureLat ??
-            sighting.latitude ??
-            sighting.lat ??
-            null,
-          captureLng:
-            sighting.capture_lng ??
-            sighting.captureLng ??
-            sighting.longitude ??
-            sighting.lng ??
-            null,
-          isBackendSighting: true,
-        }));
+        const mappedSightings = await Promise.all(
+          rows.map(async (sighting) => {
+            let photos = [];
+
+            try {
+              const photoRows = await getSightingPhotos(
+                reportId,
+                Number(sighting.sighting_id),
+              );
+
+              photos = (Array.isArray(photoRows) ? photoRows : [])
+                .map(
+                  (photo) =>
+                    photo.file_url ||
+                    photo.photo_url ||
+                    photo.url ||
+                    photo.secure_url ||
+                    null,
+                )
+                .filter(Boolean);
+            } catch (photoError) {
+              console.error(
+                `Unable to load photos for sighting ${sighting.sighting_id}:`,
+                photoError,
+              );
+            }
+
+            return {
+              id: `backend-sighting-${sighting.sighting_id}`,
+              backendSightingId: Number(sighting.sighting_id),
+              reporterId:
+                sighting.reporter_id != null
+                  ? Number(sighting.reporter_id)
+                  : null,
+              reporterName:
+                publicDisplayName(
+                  sighting.reporter_name ||
+                  sighting.reporterName ||
+                  "REunited member",
+                ),
+              distanceLabel:
+                sighting.location_text ||
+                sighting.locationText ||
+                "Location reported",
+              timeLabel: relativeTimeLabel(
+                sighting.sighted_at || sighting.created_at,
+              ),
+              confidence:
+                String(sighting.status || "").toUpperCase() === "VERIFIED"
+                  ? "HIGH"
+                  : String(sighting.status || "").toUpperCase() === "REJECTED"
+                    ? "REJECTED"
+                    : "PENDING",
+              ownerVerdict:
+                String(sighting.status || "").toUpperCase() === "VERIFIED"
+                  ? "LIKELY_MATCH"
+                  : String(sighting.status || "").toUpperCase() === "REJECTED"
+                    ? "NOT_MY_PET"
+                    : null,
+              signals: [
+                sighting.direction
+                  ? `Direction: ${sighting.direction}`
+                  : null,
+                sighting.description || null,
+              ].filter(Boolean),
+              photos,
+              photoColor: photos[0] || "#2F6E62",
+              comment: sighting.description || "",
+              captureLat:
+                sighting.capture_lat ??
+                sighting.captureLat ??
+                sighting.latitude ??
+                sighting.lat ??
+                null,
+              captureLng:
+                sighting.capture_lng ??
+                sighting.captureLng ??
+                sighting.longitude ??
+                sighting.lng ??
+                null,
+              isBackendSighting: true,
+            };
+          }),
+        );
 
         setSightingsByPet((prev) => ({
           ...prev,
@@ -2392,6 +2421,7 @@ const selectedPet = [
               photos = (Array.isArray(photoRows) ? photoRows : [])
                 .map(
                   (photo) =>
+                    photo.file_url ||
                     photo.photo_url ||
                     photo.url ||
                     photo.secure_url ||
