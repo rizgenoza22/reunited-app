@@ -2381,6 +2381,16 @@ const selectedPet = [
                 sighting.longitude ??
                 sighting.lng ??
                 null,
+              locationPrecision:
+                sighting.location_precision ??
+                sighting.locationPrecision ??
+                null,
+              locationRadiusMeters:
+                sighting.location_radius_meters != null
+                  ? Number(sighting.location_radius_meters)
+                  : sighting.locationRadiusMeters != null
+                    ? Number(sighting.locationRadiusMeters)
+                    : null,
               isBackendSighting: true,
             };
           }),
@@ -2463,6 +2473,16 @@ const selectedPet = [
                 match.latitude != null ? Number(match.latitude) : null,
               longitude:
                 match.longitude != null ? Number(match.longitude) : null,
+              locationPrecision:
+                match.location_precision ??
+                match.locationPrecision ??
+                null,
+              locationRadiusMeters:
+                match.location_radius_meters != null
+                  ? Number(match.location_radius_meters)
+                  : match.locationRadiusMeters != null
+                    ? Number(match.locationRadiusMeters)
+                    : null,
               originallyReportedPet:
                 match.originally_reported_pet || "another missing pet",
               photos,
@@ -3657,6 +3677,16 @@ const selectedPet = [
                 sighting.longitude ??
                 sighting.lng ??
                 null,
+              locationPrecision:
+                sighting.location_precision ??
+                sighting.locationPrecision ??
+                null,
+              locationRadiusMeters:
+                sighting.location_radius_meters != null
+                  ? Number(sighting.location_radius_meters)
+                  : sighting.locationRadiusMeters != null
+                    ? Number(sighting.locationRadiusMeters)
+                    : null,
               isBackendSighting: true,
               isNotificationTarget:
                 Number(sighting.sighting_id) ===
@@ -7873,32 +7903,10 @@ function ActiveScreen({
                 aria-label={`Map showing ${pet.name}'s last-seen location and ${currentRadiusKm} kilometer alert radius`}
               />
               <div className="text-xs mt-2" style={{ color: "#6B6459" }}>
-                Orange pin: last-seen location · Green pins: active sightings · Larger green pin: owner-verified Likely Match · Rejected sightings stay in history but are hidden from the active map · Circle: current {currentRadiusKm} km alert area
+                Orange pin: last-seen location · Exact sighting GPS is hidden and is not plotted on this client map · Circle: current {currentRadiusKm} km alert area
               </div>
               <div className="text-xs mt-1 font-semibold" style={{ color: "#2F6E62" }}>
-                {(Array.isArray(sightings) ? sightings : []).filter((s) => {
-                  const lat = Number(s.captureLat);
-                  const lng = Number(s.captureLng);
-                  const ownerVerdict = String(s.ownerVerdict || "").toUpperCase();
-                  const confidence = String(s.confidence || "").toUpperCase();
-                  return (
-                    Number.isFinite(lat) &&
-                    Number.isFinite(lng) &&
-                    ownerVerdict !== "NOT_MY_PET" &&
-                    confidence !== "REJECTED"
-                  );
-                }).length} active sighting pin{(Array.isArray(sightings) ? sightings : []).filter((s) => {
-                  const lat = Number(s.captureLat);
-                  const lng = Number(s.captureLng);
-                  const ownerVerdict = String(s.ownerVerdict || "").toUpperCase();
-                  const confidence = String(s.confidence || "").toUpperCase();
-                  return (
-                    Number.isFinite(lat) &&
-                    Number.isFinite(lng) &&
-                    ownerVerdict !== "NOT_MY_PET" &&
-                    confidence !== "REJECTED"
-                  );
-                }).length === 1 ? "" : "s"} mapped
+                Sighting locations are kept private on the client. Server-side matching continues to use the protected location.
               </div>
             </div>
           )}
@@ -8102,6 +8110,21 @@ function ActiveScreen({
                   <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
                     This sighting stays attached to its original missing-pet report. Your review only records whether it could be your pet.
                   </div>
+
+                  {(match.locationPrecision === "HIDDEN_WITHIN_1KM" ||
+                    Number(match.locationRadiusMeters) === 1000) && (
+                    <div
+                      className="rounded-md p-3 text-xs mb-3"
+                      style={{
+                        background: "#F7F0E3",
+                        border: "1px solid #CBBFA0",
+                        color: "#6B6459",
+                      }}
+                    >
+                      <strong style={{ color: "#20291F" }}>Location privacy:</strong>{" "}
+                      Exact GPS is hidden. Only an approximate 1 km sighting area is available.
+                    </div>
+                  )}
 
                   {navigationUrl && (
                     <a
@@ -8513,8 +8536,9 @@ function TrailScreen({
                 </div>
               )}
 
-              {s.captureLat != null &&
-                s.captureLng != null && (
+              {(s.locationPrecision === "HIDDEN_WITHIN_1KM" ||
+                Number(s.locationRadiusMeters) === 1000 ||
+                (s.captureLat != null && s.captureLng != null)) && (
                   <div
                     className="mb-3 rounded-md p-3"
                     style={{
@@ -8534,7 +8558,7 @@ function TrailScreen({
                       className="text-xs"
                       style={{ color: "#6B6459" }}
                     >
-                      Exact GPS is hidden for privacy. The sighting is shown only as an approximate area within 1 km.
+                      Exact GPS is hidden for privacy. Only an approximate {Math.max(1, Math.round((Number(s.locationRadiusMeters) || 1000) / 1000))} km sighting area is provided.
                     </div>
                   </div>
                 )}
