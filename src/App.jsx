@@ -1070,11 +1070,6 @@ const PIPELINE_STAGES = [
   { key: "corroboration", label: "Checking nearby reports" },
 ];
 
-const VERIFICATION_STAGES = [
-  { key: "format", label: "Reading document" },
-  { key: "match", label: "Confirming details match your account" },
-  { key: "checks", label: "Running verification checks" },
-];
 
 // e.g. "Sep 3, 2026" -- used for the lost/found dates on Reunion Stories.
 function formatDateLabel(date) {
@@ -5769,8 +5764,6 @@ function PrivacyPolicyScreen({ onBack, onContactSupport }) {
           <span style={{ color: "#6B6459" }}>Location may be collected when you report a missing pet, submit a sighting, or choose to use nearby features.</span></p>
         <p><span className="font-semibold">Photos & Videos</span><br />
           <span style={{ color: "#6B6459" }}>Photos and videos you upload or capture inside REunited.</span></p>
-        <p><span className="font-semibold">Identity Verification</span><br />
-          <span style={{ color: "#6B6459" }}>If identity verification is required, verification information may be processed to help protect the community.</span></p>
       </PolicySection>
 
       <PolicySection title="HOW WE USE YOUR INFORMATION">
@@ -10717,7 +10710,7 @@ function WelcomeStep({ onContinue, onLogin }) {
 }
 
 function Onboarding({ onComplete, onLoginComplete, initialStage = "welcome" }) {
-  // welcome | login | forgotPassword | contact | code | profileDetails | idType | idCapture | verifying | verified
+  // welcome | login | forgotPassword | contact | code | profileDetails
   const [stage, setStage] = useState(initialStage);
   const [contact, setContact] = useState("");
   const [contactMethod, setContactMethod] = useState("email");
@@ -10727,8 +10720,6 @@ function Onboarding({ onComplete, onLoginComplete, initialStage = "welcome" }) {
   const [address, setAddress] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
-  const [idType, setIdType] = useState(null);
-  const [idCaptured, setIdCaptured] = useState(false);
 
   return (
     <div>
@@ -10811,34 +10802,16 @@ function Onboarding({ onComplete, onLoginComplete, initialStage = "welcome" }) {
           emergencyContactPhone={emergencyContactPhone}
           setEmergencyContactPhone={setEmergencyContactPhone}
           onBack={() => setStage("code")}
-          onContinue={() => setStage("idType")}
-        />
-      )}
-      {stage === "idType" && (
-        <IdTypeStep idType={idType} setIdType={setIdType} onBack={() => setStage("profileDetails")} onContinue={() => setStage("idCapture")} />
-      )}
-      {stage === "idCapture" && (
-        <IdCaptureStep
-          idType={idType}
-          idCaptured={idCaptured}
-          setIdCaptured={setIdCaptured}
-          onBack={() => setStage("idType")}
-          onContinue={() => setStage("verifying")}
-        />
-      )}
-      {stage === "verifying" && <VerifyingStep onDone={() => setStage("verified")} />}
-      {stage === "verified" && (
-        <VerifiedStep
           onContinue={() =>
             onComplete({
-  contact,
-  contactMethod,
-  fullName,
-  password,
-  address,
-  emergencyContactName,
-  emergencyContactPhone
-})
+              contact,
+              contactMethod,
+              fullName,
+              password,
+              address,
+              emergencyContactName,
+              emergencyContactPhone,
+            })
           }
         />
       )}
@@ -11243,7 +11216,7 @@ function ContactStep({
 
   return (
     <div>
-      <OnboardingHeader step={1} total={5} onBack={onBack} />
+      <OnboardingHeader step={1} total={3} onBack={onBack} />
 
       <div className="amr-display text-4xl leading-none mb-1">
         JOIN THE SEARCH
@@ -11412,7 +11385,7 @@ function CodeStep({
 
   return (
     <div>
-      <OnboardingHeader step={2} total={5} onBack={onBack} />
+      <OnboardingHeader step={2} total={3} onBack={onBack} />
 
       <div className="amr-display text-4xl leading-none mb-1">
         CHECK YOUR {contactMethod === "email" ? "INBOX" : "PHONE"}
@@ -11480,7 +11453,7 @@ function ProfileDetailsStep({
   password.length >= 8;
   return (
     <div>
-      <OnboardingHeader step={3} total={5} onBack={onBack} />
+      <OnboardingHeader step={3} total={3} onBack={onBack} />
       <div className="amr-display text-4xl leading-none mb-1">TELL US ABOUT YOU</div>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         This is what helps people reach you fastest if your pet ever goes missing.
@@ -11559,136 +11532,6 @@ function ProfileDetailsStep({
   );
 }
 
-function IdTypeStep({ idType, setIdType, onBack, onContinue }) {
-  return (
-    <div>
-      <OnboardingHeader step={4} total={5} onBack={onBack} />
-      <div className="amr-display text-4xl leading-none mb-1">CONFIRM YOU'RE REAL</div>
-      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
-        One more step keeps REunited trustworthy for pet owners and
-        finders alike. Pick an ID to verify with.
-      </p>
-
-      <div className="flex flex-col gap-2 mb-6">
-        {[
-          { key: "government", label: "Government-issued ID", hint: "Driver's license, passport, or national ID" },
-          { key: "school", label: "School ID", hint: "Student or staff ID card" },
-        ].map((opt) => (
-          <button
-            key={opt.key}
-            onClick={() => setIdType(opt.key)}
-            className={`amr-chip w-full text-left px-3.5 py-3 rounded-md ${idType === opt.key ? "amr-chip-active" : ""}`}
-          >
-            <div className="text-sm font-semibold">{opt.label}</div>
-            <div className="text-xs" style={{ color: idType === opt.key ? "#CBBFA0" : "#6B6459" }}>{opt.hint}</div>
-          </button>
-        ))}
-      </div>
-
-      <button disabled={!idType} onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
-        Continue
-      </button>
-    </div>
-  );
-}
-
-function IdCaptureStep({ idType, idCaptured, setIdCaptured, onBack, onContinue }) {
-  return (
-    <div>
-      <OnboardingHeader step={5} total={5} onBack={onBack} />
-      <div className="amr-display text-4xl leading-none mb-1">PHOTOGRAPH YOUR ID</div>
-      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
-        Make sure all four corners are visible and the text is easy to read.
-      </p>
-
-      <div
-        onClick={!idCaptured ? () => setIdCaptured(true) : undefined}
-        className="amr-map relative w-full h-40 rounded-lg overflow-hidden mb-2 flex items-center justify-center"
-        style={{ cursor: idCaptured ? "default" : "pointer" }}
-      >
-        {!idCaptured ? (
-          <div className="flex flex-col items-center gap-2" style={{ color: "#6B6459" }}>
-            <Camera size={26} />
-            <span className="text-sm font-semibold">Tap to photograph your {idType === "school" ? "school ID" : "ID"}</span>
-          </div>
-        ) : (
-          <div className="amr-fade-in flex flex-col items-center gap-2" style={{ color: "#2F6E62" }}>
-            <CheckCircle2 size={36} />
-            <span className="text-xs font-semibold" style={{ color: "#6B6459" }}>ID captured</span>
-          </div>
-        )}
-      </div>
-      <p className="text-xs mb-5" style={{ color: "#6B6459" }}>
-        Your ID photo is used only to verify your identity and isn't shown to
-        other users.
-      </p>
-
-      <button disabled={!idCaptured} onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
-        Submit for verification
-      </button>
-    </div>
-  );
-}
-
-function VerifyingStep({ onDone }) {
-  const [stageIndex, setStageIndex] = useState(0);
-  const done = stageIndex >= VERIFICATION_STAGES.length;
-
-  useEffect(() => {
-    if (done) {
-      const t = setTimeout(onDone, 500);
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(() => setStageIndex((i) => i + 1), 700);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageIndex]);
-
-  return (
-    <div className="text-center pt-6">
-      <div className="flex justify-center mb-4">
-        <RotateCw size={36} className="animate-spin" color="#20291F" />
-      </div>
-      <div className="amr-display text-4xl mb-1">VERIFYING</div>
-      <p className="text-sm mb-6" style={{ color: "#6B6459" }}>This usually takes just a moment.</p>
-      <div className="amr-panel rounded-lg p-4 text-left">
-        {VERIFICATION_STAGES.map((s, i) => (
-          <div key={s.key} className="flex items-center gap-2.5 py-1.5">
-            {i < stageIndex ? (
-              <CheckCircle2 size={16} color="#2F6E62" />
-            ) : i === stageIndex ? (
-              <RotateCw size={16} className="animate-spin" color="#6B6459" />
-            ) : (
-              <span className="w-4 h-4 rounded-full" style={{ border: "2px solid #CBBFA0" }} />
-            )}
-            <span className="text-sm" style={{ color: i <= stageIndex ? "#20291F" : "#6B6459" }}>{s.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function VerifiedStep({ onContinue }) {
-  return (
-    <div className="text-center pt-6">
-      <div className="flex justify-center mb-4">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#2F6E62" }}>
-          <CheckCircle2 size={32} color="#F2E9D8" />
-        </div>
-      </div>
-      <div className="amr-display text-4xl mb-1" style={{ color: "#2F6E62" }}>YOU'RE VERIFIED</div>
-      <p className="text-sm mb-6" style={{ color: "#6B6459" }}>
-        You can now create pet profiles, report a missing pet, and help
-        reunite others nearby.
-      </p>
-      <button onClick={onContinue} className="amr-btn-teal w-full py-3 rounded-md">
-        Continue to REunited
-      </button>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Admin dashboard -- platform-staff view, entirely separate from the
 // consumer app. Deliberately styled differently (dark header, color-coded
@@ -11696,10 +11539,8 @@ function VerifiedStep({ onContinue }) {
 // ops dashboard, not a warm community app -- for a different audience.
 //
 // Mock data generators build realistic-looking sample lists so each stat
-// tile can be drilled into. Identity/Photo reviews and User Reports are
-// genuinely actionable here (Approve/Reject/Resolve actually remove the
-// item and the tile's count updates live) since those are admin-driven
-// actions. Active Cases and Reunited Today are read-only samples -- those
+// tile can be drilled into. Photo reviews and User Reports are actionable
+// admin-driven workflows. Active Cases and Reunited Today are read-only samples -- those
 // are owner-driven outcomes, not something an admin resolves directly, and
 // 142/14 are illustrative totals rather than the full underlying dataset.
 // ---------------------------------------------------------------------------
@@ -11710,15 +11551,6 @@ function mockPersonName(i) {
   return `${MOCK_FIRST_NAMES[i % MOCK_FIRST_NAMES.length]} ${MOCK_LAST_INITIALS[(i * 3) % MOCK_LAST_INITIALS.length]}`;
 }
 
-function buildIdentityReviews(count) {
-  const idTypes = ["Government ID", "School ID"];
-  return Array.from({ length: count }, (_, i) => ({
-    id: `idr-${i}`,
-    applicantName: mockPersonName(i),
-    idType: idTypes[i % idTypes.length],
-    submittedLabel: `${(i % 6) + 1} hr ago`,
-  }));
-}
 
 function buildPhotoReviews(count) {
   const reasons = ["Possible AI-generation flag", "Low image quality", "Metadata mismatch", "Duplicate image detected"];
@@ -11770,7 +11602,6 @@ function buildReunitedToday(count) {
 
 const ADMIN_CATEGORY_TITLES = {
   activeCases: "Active Missing Cases",
-  idReviews: "Identity Reviews",
   photoReviews: "Photo Reviews",
   userReports: "User Reports",
   messages: "Messages",
@@ -11783,7 +11614,6 @@ function AdminDashboardScreen({
   onSendReply,
 }) {
   const [drilldown, setDrilldown] = useState(null);
-  const [identityReviews, setIdentityReviews] = useState(() => buildIdentityReviews(18));
   const [photoReviews, setPhotoReviews] = useState(() => buildPhotoReviews(27));
   const [userReports, setUserReports] = useState([]);
   const [userReportsLoading, setUserReportsLoading] = useState(true);
@@ -11973,15 +11803,12 @@ function AdminDashboardScreen({
       <AdminDrilldownScreen
         category={drilldown}
         onBack={() => setDrilldown(null)}
-        identityReviews={identityReviews}
         photoReviews={photoReviews}
         userReports={userReports}
         activeCasesSample={activeCasesSample}
         reunitedTodayList={reunitedTodayList}
         feedbackMessages={feedbackMessages}
         onSendReply={onSendReply}
-        onApproveIdentity={(id) => setIdentityReviews((prev) => prev.filter((r) => r.id !== id))}
-        onRejectIdentity={(id) => setIdentityReviews((prev) => prev.filter((r) => r.id !== id))}
         onApprovePhoto={(id) => setPhotoReviews((prev) => prev.filter((r) => r.id !== id))}
         onRejectPhoto={(id) => setPhotoReviews((prev) => prev.filter((r) => r.id !== id))}
         onResolveReport={(id) => setUserReports((prev) => prev.filter((r) => r.id !== id))}
@@ -12437,8 +12264,8 @@ function MessagesDrilldown({ feedbackMessages, onSendReply }) {
 }
 
 function AdminDrilldownScreen({
-  category, onBack, identityReviews, photoReviews, userReports, activeCasesSample, reunitedTodayList, feedbackMessages,
-  onApproveIdentity, onRejectIdentity, onApprovePhoto, onRejectPhoto, onResolveReport, onSendReply,
+  category, onBack, photoReviews, userReports, activeCasesSample, reunitedTodayList, feedbackMessages,
+  onApprovePhoto, onRejectPhoto, onResolveReport, onSendReply,
 }) {
   const [openedItem, setOpenedItem] = useState(null); // the specific item tapped, or null for the list view
 
@@ -12448,8 +12275,6 @@ function AdminDrilldownScreen({
         category={category}
         item={openedItem}
         onBack={() => setOpenedItem(null)}
-        onApproveIdentity={(id) => { onApproveIdentity(id); setOpenedItem(null); }}
-        onRejectIdentity={(id) => { onRejectIdentity(id); setOpenedItem(null); }}
         onApprovePhoto={(id) => { onApprovePhoto(id); setOpenedItem(null); }}
         onRejectPhoto={(id) => { onRejectPhoto(id); setOpenedItem(null); }}
         onResolveReport={(id) => { onResolveReport(id); setOpenedItem(null); }}
@@ -12486,33 +12311,6 @@ function AdminDrilldownScreen({
             ))}
           </div>
         </>
-      )}
-
-      {category === "idReviews" && (
-        <div className="flex flex-col gap-3">
-          {identityReviews.length === 0 && (
-            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up — no pending reviews.</p>
-          )}
-          {identityReviews.map((r) => (
-            <div key={r.id} className="amr-panel rounded-lg p-3.5">
-              <button onClick={() => setOpenedItem(r)} className="text-left w-full mb-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-sm">{r.applicantName}</span>
-                  <span className="text-xs" style={{ color: "#6B6459" }}>{r.submittedLabel}</span>
-                </div>
-                <div className="text-xs" style={{ color: "#6B6459" }}>{r.idType}</div>
-              </button>
-              <div className="flex gap-2">
-                <button onClick={() => onApproveIdentity(r.id)} className="amr-btn-teal flex-1 py-1.5 rounded-md text-xs">
-                  Approve
-                </button>
-                <button onClick={() => onRejectIdentity(r.id)} className="amr-btn-secondary flex-1 py-1.5 rounded-md text-xs">
-                  Reject
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
       )}
 
       {category === "photoReviews" && (
@@ -12598,13 +12396,12 @@ function AdminDrilldownScreen({
 
 // Full detail view for a single item within any admin category -- reached
 // by tapping a row in the list. Field layout is category-specific since
-// each mock dataset has different shape; actionable categories (identity/
-// photo reviews, user reports) get the same Approve/Reject/Resolve buttons
+// each mock dataset has different shape; actionable categories (photo
+// reviews, user reports) get the same Approve/Reject/Resolve buttons
 // available inline on the list, so an admin doesn't have to go back to act.
-function AdminItemDetailScreen({ category, item, onBack, onApproveIdentity, onRejectIdentity, onApprovePhoto, onRejectPhoto, onResolveReport }) {
+function AdminItemDetailScreen({ category, item, onBack, onApprovePhoto, onRejectPhoto, onResolveReport }) {
   const titleByCategory = {
     activeCases: item.petName,
-    idReviews: item.applicantName,
     photoReviews: item.petName,
     userReports: item.reportedUser,
     reunitedToday: item.petName,
@@ -12617,11 +12414,6 @@ function AdminItemDetailScreen({ category, item, onBack, onApproveIdentity, onRe
       { label: "Last seen", value: item.lastSeenLabel },
       { label: "Alert radius", value: `${item.radiusKm} km` },
       { label: "Status", value: "ACTIVE" },
-    ],
-    idReviews: [
-      { label: "Applicant", value: item.applicantName },
-      { label: "ID type", value: item.idType },
-      { label: "Submitted", value: item.submittedLabel },
     ],
     photoReviews: [
       { label: "Pet", value: item.petName },
@@ -12658,16 +12450,6 @@ function AdminItemDetailScreen({ category, item, onBack, onApproveIdentity, onRe
         </div>
       </div>
 
-      {category === "idReviews" && (
-        <div className="flex gap-2">
-          <button onClick={() => onApproveIdentity(item.id)} className="amr-btn-teal flex-1 py-2.5 rounded-md text-sm">
-            Approve
-          </button>
-          <button onClick={() => onRejectIdentity(item.id)} className="amr-btn-secondary flex-1 py-2.5 rounded-md text-sm">
-            Reject
-          </button>
-        </div>
-      )}
       {category === "photoReviews" && (
         <div className="flex gap-2">
           <button onClick={() => onApprovePhoto(item.id)} className="amr-btn-teal flex-1 py-2.5 rounded-md text-sm">
