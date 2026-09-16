@@ -117,6 +117,7 @@ const PRIVACY_VERSION = "2026-09-11";
 const LOCATION_CONSENT_VERSION = "2026-09-11";
 const TERMS_VERSION = "2026-09-11";
 const COMMUNITY_GUIDELINES_VERSION = "2026-09-11";
+const SUPPORT_EMAIL = "reunitedphhome@gmail.com";
 
 async function getMyPrivacyConsents() {
   const token = localStorage.getItem("access_token");
@@ -4159,6 +4160,9 @@ onRefreshNearby={loadNearbyAlerts}
           onNotificationSettings={() => setScreen("notificationSettings")}
           onPrivacyPolicy={() => setScreen("privacyPolicy")}
           onTerms={() => setScreen("terms")}
+          onContactSupport={() => {
+            window.location.href = `mailto:${SUPPORT_EMAIL}?subject=REunited%20Support`;
+          }}
           onDeleteAccount={() => setScreen("deleteAccountStep1")}
           onLogout={onLogout}
         />
@@ -4166,14 +4170,9 @@ onRefreshNearby={loadNearbyAlerts}
       {screen === "privacyPolicy" && (
         <PrivacyPolicyScreen
           onBack={() => setScreen("settings")}
-          onContactSupport={() =>
-            openMessageThread({
-              id: ADMIN_FEEDBACK_THREAD_ID,
-              title: "Amari",
-              subtitle: "Support question via Privacy Policy",
-              origin: "privacyPolicy",
-            })
-          }
+          onContactSupport={() => {
+            window.location.href = `mailto:${SUPPORT_EMAIL}?subject=REunited%20Privacy%20Support`;
+          }}
         />
       )}
       {screen === "terms" && (
@@ -5656,7 +5655,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
   );
 }
 
-function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificationSettings, onPrivacyPolicy, onTerms, onDeleteAccount, onLogout }) {
+function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificationSettings, onPrivacyPolicy, onTerms, onContactSupport, onDeleteAccount, onLogout }) {
   return (
     <div>
       <ScreenHeader title="Settings" onBack={onBack} />
@@ -5704,11 +5703,22 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
           </div>
           <ChevronRight size={16} color="#6B6459" className="shrink-0 ml-2" />
         </button>
-        <button onClick={onTerms} className="w-full text-left flex items-center justify-between px-4 py-3">
+        <button onClick={onTerms} className="w-full text-left flex items-center justify-between px-4 py-3"
+          style={{ borderBottom: "1px solid #CBBFA0" }}
+        >
           <div>
             <div className="text-sm font-medium">📄 Terms & Community Guidelines</div>
             <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
               Understand the rules for using REunited safely and responsibly.
+            </div>
+          </div>
+          <ChevronRight size={16} color="#6B6459" className="shrink-0 ml-2" />
+        </button>
+        <button onClick={onContactSupport} className="w-full text-left flex items-center justify-between px-4 py-3">
+          <div>
+            <div className="text-sm font-medium">✉️ Contact & Support</div>
+            <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
+              {SUPPORT_EMAIL}
             </div>
           </div>
           <ChevronRight size={16} color="#6B6459" className="shrink-0 ml-2" />
@@ -5794,6 +5804,13 @@ function PrivacyPolicyScreen({ onBack, onContactSupport }) {
           sharing preferences, and request deletion of your account.
         </p>
       </div>
+
+      <PolicySection title="CONTACT & SUPPORT">
+        <p style={{ color: "#6B6459" }}>
+          For safety reports, moderation questions, privacy requests, or support,
+          contact REunited at <span className="font-semibold">{SUPPORT_EMAIL}</span>.
+        </p>
+      </PolicySection>
 
       <p className="text-sm text-center mb-3" style={{ color: "#6B6459" }}>Questions about privacy?</p>
       <button onClick={onContactSupport} className="amr-btn-secondary w-full py-2.5 rounded-md text-sm">
