@@ -45,6 +45,30 @@ function authHeaders() {
     : {};
 }
 
+
+// ======================================================
+// AUTH / ACCOUNT SECURITY
+// ======================================================
+
+export async function changePassword(currentPassword, newPassword) {
+  const response = await fetch(
+    `${API_BASE_URL}/auth/change-password`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    },
+  );
+
+  return handleResponse(response);
+}
+
 // ======================================================
 // NEARBY REPORTS
 // ======================================================

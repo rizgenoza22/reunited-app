@@ -75,6 +75,7 @@ import {
   getMyReportCount,
   getMyProfile,
   updateMyProfile,
+  changePassword,
   blockUser,
   reportUser,
   getAdminUserReports,
@@ -5930,14 +5931,34 @@ function ChangePasswordScreen({ onBack }) {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saved, setSaved] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const canSave = current.length > 0 && next.length >= 8 && next === confirm;
+  const canSave =
+    !submitting &&
+    current.length > 0 &&
+    next.length >= 8 &&
+    next.length <= 128 &&
+    next === confirm;
 
-  function save() {
-    setSaved(true);
-    setCurrent("");
-    setNext("");
-    setConfirm("");
+  async function save() {
+    if (!canSave) return;
+
+    setSubmitting(true);
+    setSaved(false);
+    setError("");
+
+    try {
+      await changePassword(current, next);
+      setSaved(true);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+    } catch (err) {
+      setError(err?.message || "Unable to update your password.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -5946,7 +5967,17 @@ function ChangePasswordScreen({ onBack }) {
 
       {saved && (
         <div className="amr-fade-in mb-4 rounded-md p-3 text-sm" style={{ background: "#DED9C0", border: "2px solid #2F6E62", color: "#20291F" }}>
-          Password updated.
+          Password updated successfully.
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="amr-fade-in mb-4 rounded-md p-3 text-sm"
+          role="alert"
+          style={{ background: "#FDECEC", border: "2px solid #B42318", color: "#7A271A" }}
+        >
+          {error}
         </div>
       )}
 
@@ -5956,7 +5987,8 @@ function ChangePasswordScreen({ onBack }) {
         name="currentPassword"
         type="password"
         value={current}
-        onChange={(e) => { setCurrent(e.target.value); setSaved(false); }}
+        onChange={(e) => { setCurrent(e.target.value); setSaved(false); setError(""); }}
+        autoComplete="current-password"
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
       />
 
@@ -5966,8 +5998,9 @@ function ChangePasswordScreen({ onBack }) {
         name="newPassword"
         type="password"
         value={next}
-        onChange={(e) => { setNext(e.target.value); setSaved(false); }}
-        placeholder="At least 8 characters"
+        onChange={(e) => { setNext(e.target.value); setSaved(false); setError(""); }}
+        placeholder="8 to 128 characters"
+        autoComplete="new-password"
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
       />
 
@@ -5977,12 +6010,23 @@ function ChangePasswordScreen({ onBack }) {
         name="confirmNewPassword"
         type="password"
         value={confirm}
-        onChange={(e) => { setConfirm(e.target.value); setSaved(false); }}
-        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-5"
+        onChange={(e) => { setConfirm(e.target.value); setSaved(false); setError(""); }}
+        autoComplete="new-password"
+        className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-2"
       />
 
-      <button disabled={!canSave} onClick={save} className="amr-btn-primary w-full py-3 rounded-md">
-        Save New Password
+      {confirm && next !== confirm && (
+        <div className="text-sm mb-4" style={{ color: "#B42318" }}>
+          Passwords do not match.
+        </div>
+      )}
+
+      <button
+        disabled={!canSave}
+        onClick={save}
+        className="amr-btn-primary w-full py-3 rounded-md"
+      >
+        {submitting ? "Updating..." : "Save New Password"}
       </button>
     </div>
   );
