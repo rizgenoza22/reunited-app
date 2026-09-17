@@ -9939,9 +9939,23 @@ function ReportSightingScreen({
       (error) => {
         console.error(error);
 
-        setMessage(
-          "Unable to get your location. Please allow location access.",
-        );
+        if (error?.code === 1) {
+          setMessage(
+            "Location permission was denied. You can enable location access in your device settings, or tap the map to place the sighting pin manually.",
+          );
+        } else if (error?.code === 2) {
+          setMessage(
+            "Your current location is unavailable. Please try again, or tap the map to place the sighting pin manually.",
+          );
+        } else if (error?.code === 3) {
+          setMessage(
+            "Getting your location timed out. Please try again, or tap the map to place the sighting pin manually.",
+          );
+        } else {
+          setMessage(
+            "Unable to get your current location. Please try again, or tap the map to place the sighting pin manually.",
+          );
+        }
       },
       {
         enableHighAccuracy: true,
