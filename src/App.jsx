@@ -1,4 +1,4 @@
-﻿import {
+import {
   Fragment,
   useEffect,
   useRef,
@@ -12573,7 +12573,137 @@ function FounderWelcomeScreen({ rank, onContinue }) {
   );
 }
 
+function PublicPrivacyPolicyPage() {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#F6F1E7",
+        color: "#20291F",
+        padding: "32px 18px 56px",
+        fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}
+    >
+      <article
+        style={{
+          width: "100%",
+          maxWidth: 820,
+          margin: "0 auto",
+          background: "#FFFFFF",
+          border: "1px solid #DDD2B6",
+          borderRadius: 18,
+          padding: "clamp(22px, 5vw, 48px)",
+          boxShadow: "0 12px 36px rgba(32, 41, 31, 0.08)",
+        }}
+      >
+        <p style={{ margin: 0, color: "#2F6E62", fontWeight: 800, letterSpacing: "0.08em" }}>
+          REUNITED
+        </p>
+        <h1 style={{ margin: "8px 0 6px", fontSize: "clamp(30px, 6vw, 46px)" }}>
+          Privacy Policy
+        </h1>
+        <p style={{ marginTop: 0, color: "#667064" }}>Last updated: September 17, 2026</p>
+
+        <p>
+          REunited helps communities report missing pets, share sightings, communicate about
+          recovery efforts, and reunite pets with their families. This policy explains the
+          information REunited processes, why it is used, and the choices available to you.
+        </p>
+
+        <h2>Information we collect</h2>
+        <p>
+          Depending on the features you use, REunited may process your email address and account
+          identifier; precise and approximate location information for missing-pet and sighting
+          features; pet, missing-report, and sighting photos; private in-app messages; and other
+          content you submit such as descriptions, sighting details, reports, and reunion stories.
+          Push-notification registration may also include a device identifier or push token linked
+          to your account.
+        </p>
+
+        <h2>How we use information</h2>
+        <p>
+          We use this information for app functionality: creating and securing accounts,
+          operating missing-pet and sighting features, performing proximity and matching
+          functions, displaying appropriate location information, enabling messaging and
+          notifications, preventing abuse, providing support, and maintaining the service.
+          REunited does not use these data types for cross-company advertising tracking.
+        </p>
+
+        <h2>Location privacy</h2>
+        <p>
+          Precise location may be processed on the server when needed for proximity and matching.
+          REunited is designed not to expose a sighting's exact coordinates to the general
+          community. Client-facing experiences may instead show an approximate area or radius.
+          You can deny location permission and use available manual location options where
+          supported.
+        </p>
+
+        <h2>Photos and metadata</h2>
+        <p>
+          Uploaded pet and sighting images are processed for app functionality. REunited
+          sanitizes newly uploaded images before storage to remove embedded metadata such as
+          EXIF/GPS metadata. Images are stored using a cloud image-storage provider.
+        </p>
+
+        <h2>Service providers</h2>
+        <p>
+          REunited uses service providers to operate the app, including cloud database and
+          authentication infrastructure, cloud image storage, transactional email delivery, and
+          push-notification delivery. These providers process information as needed to provide
+          their services to REunited.
+        </p>
+
+        <h2>Retention and account deletion</h2>
+        <p>
+          Information is retained as needed to provide REunited, protect the service, meet
+          legitimate operational or legal needs, and preserve appropriate community recovery
+          history. You can request deletion directly inside the app through the account deletion
+          feature. Account deletion removes or anonymizes personal account information and
+          associated private data according to REunited's deletion process. Some anonymized
+          community recovery history may remain where it no longer identifies the deleted user.
+        </p>
+
+        <h2>Your choices</h2>
+        <p>
+          You can control camera, photo-library, location, and notification permissions through
+          your device settings. You can also delete your REunited account from within the app.
+          If you need privacy or account support, contact us using the address below.
+        </p>
+
+        <h2>Children and sensitive identification documents</h2>
+        <p>
+          REunited does not require users to submit a government ID or school ID for account
+          verification. Users should not upload identification documents as pet or sighting
+          photos.
+        </p>
+
+        <h2>Changes to this policy</h2>
+        <p>
+          We may update this Privacy Policy as REunited changes. The current version will be
+          published on this page with an updated revision date.
+        </p>
+
+        <h2>Contact &amp; Support</h2>
+        <p>
+          For privacy questions, account support, or data-deletion assistance, contact
+          {" "}
+          <a href="mailto:reunitedphhome@gmail.com" style={{ color: "#2F6E62", fontWeight: 700 }}>
+            reunitedphhome@gmail.com
+          </a>.
+        </p>
+
+        <hr style={{ border: 0, borderTop: "1px solid #DDD2B6", margin: "32px 0 20px" }} />
+        <p style={{ marginBottom: 0, fontSize: 14, color: "#667064" }}>
+          REunited - Privacy Policy
+        </p>
+      </article>
+    </main>
+  );
+}
 export default function App() {
+  const isPrivacyRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/privacy";
   const isPasswordResetRoute =
     typeof window !== "undefined" &&
     window.location.pathname === "/reset-password";
@@ -12582,8 +12712,12 @@ export default function App() {
     : "";
 
   const [view, setView] = useState(
-    isPasswordResetRoute ? "resetPassword" : "onboarding",
-  ); // "onboarding" | "resetPassword" | "founderWelcome" | "app" | "admin"
+    isPrivacyRoute
+      ? "privacy"
+      : isPasswordResetRoute
+        ? "resetPassword"
+        : "onboarding",
+  ); // "privacy" | "onboarding" | "resetPassword" | "founderWelcome" | "app" | "admin"
   const [onboardingInitialStage, setOnboardingInitialStage] = useState("welcome");
   const [onboardingProfile, setOnboardingProfile] = useState(null); // { contact, contactMethod, fullName, address, emergencyContactName, emergencyContactPhone }
   let storedUser = null;
@@ -12735,7 +12869,9 @@ export default function App() {
       `}</style>
 
       <div className="amr-root w-full max-w-sm">
-        {view === "resetPassword" ? (
+        {view === "privacy" ? (
+          <PublicPrivacyPolicyPage />
+        ) : view === "resetPassword" ? (
           <ResetPasswordScreen
             token={resetToken}
             onDone={() => {
