@@ -113,7 +113,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   "https://reunited-api.onrender.com";
 
-const PRIVACY_VERSION = "2026-09-11";
+const PRIVACY_VERSION = "2026-09-17";
 const LOCATION_CONSENT_VERSION = "2026-09-11";
 const TERMS_VERSION = "2026-09-11";
 const COMMUNITY_GUIDELINES_VERSION = "2026-09-11";
@@ -5734,7 +5734,7 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
         <div>
           <div className="text-sm font-semibold" style={{ color: "#7A2E17" }}>Delete My Account</div>
           <div className="text-xs mt-0.5" style={{ color: "#7A2E17" }}>
-            Permanently delete your REunited account and associated personal data.
+            Delete your REunited account and associated personal data.
           </div>
         </div>
         <ChevronRight size={16} color="#7A2E17" className="shrink-0 ml-2" />
@@ -5760,55 +5760,91 @@ function PrivacyPolicyScreen({ onBack, onContactSupport }) {
       <div className="amr-display text-2xl leading-none mb-4">YOUR PRIVACY MATTERS</div>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         REunited helps people protect their pets, report missing pets, and
-        help reunite pets with their families. To make these features work,
-        we may collect information you provide and information needed to
-        operate location-based features.
+        help reunite pets with their families. To provide these features,
+        we process information you provide and information needed for
+        location-based, safety, communication, and notification features.
       </p>
 
       <PolicySection title="INFORMATION WE MAY COLLECT">
         <p><span className="font-semibold">Account Information</span><br />
           <span style={{ color: "#6B6459" }}>Name, email address, phone number, and account details.</span></p>
-        <p><span className="font-semibold">Pet Information</span><br />
-          <span style={{ color: "#6B6459" }}>Pet names, photos, breed, color, identifying features, and other information you choose to provide.</span></p>
+        <p><span className="font-semibold">Pet & Recovery Information</span><br />
+          <span style={{ color: "#6B6459" }}>Pet names, photos, breed, color, identifying features, missing-pet reports, sightings, messages, reunion information, and other information you choose to provide.</span></p>
         <p><span className="font-semibold">Location Information</span><br />
-          <span style={{ color: "#6B6459" }}>Location may be collected when you report a missing pet, submit a sighting, or choose to use nearby features.</span></p>
+          <span style={{ color: "#6B6459" }}>Location may be collected when you report a missing pet, submit a sighting, update an alert location, or choose to use nearby features.</span></p>
         <p><span className="font-semibold">Photos & Videos</span><br />
-          <span style={{ color: "#6B6459" }}>Photos and videos you upload or capture inside REunited.</span></p>
+          <span style={{ color: "#6B6459" }}>Photos and videos you choose to upload or capture for REunited features.</span></p>
+        <p><span className="font-semibold">Device & Notification Information</span><br />
+          <span style={{ color: "#6B6459" }}>When notifications are enabled, REunited may process a device push token and notification preferences needed to deliver alerts.</span></p>
       </PolicySection>
 
       <PolicySection title="HOW WE USE YOUR INFORMATION">
-        <p style={{ color: "#6B6459" }}>We use your information to:</p>
+        <p style={{ color: "#6B6459" }}>We use information as needed to:</p>
         <ul className="space-y-1" style={{ color: "#6B6459" }}>
-          <li>· Operate your REunited account</li>
-          <li>· Help locate missing pets</li>
-          <li>· Send relevant nearby alerts</li>
-          <li>· Process sightings</li>
-          <li>· Improve trust and safety</li>
-          <li>· Prevent fraud and abuse</li>
-          <li>· Provide customer support</li>
+          <li>· Operate and secure your REunited account</li>
+          <li>· Help locate missing pets and process sightings</li>
+          <li>· Send relevant nearby and account notifications</li>
+          <li>· Enable communication related to recovery cases</li>
+          <li>· Improve trust and safety and prevent fraud or abuse</li>
+          <li>· Send verification and password-reset emails</li>
+          <li>· Provide customer and privacy support</li>
         </ul>
       </PolicySection>
 
       <PolicySection title="LOCATION PRIVACY">
         <p style={{ color: "#6B6459" }}>
-          Your precise home address is not displayed publicly. When
-          appropriate, other users may see an approximate missing or
-          sighting area instead of your exact location.
+          REunited may use precise location internally when a feature requires
+          proximity or matching. Exact sighting coordinates are protected from
+          general community display; other users may receive an approximate area
+          or proximity result instead. Do not include a private home address in
+          free-text fields that you do not want other users to see.
         </p>
       </PolicySection>
 
-      <div className="mb-5">
-        <div className="font-semibold text-xs mb-2 tracking-wide" style={{ color: "#6B6459" }}>YOUR CHOICES</div>
-        <p className="text-sm" style={{ color: "#6B6459" }}>
-          You may manage your account information, permissions, public
-          sharing preferences, and request deletion of your account.
+      <PolicySection title="SERVICE PROVIDERS & DATA SHARING">
+        <p style={{ color: "#6B6459" }}>
+          REunited uses service providers to operate the app. These include
+          database and hosting infrastructure, Cloudinary for uploaded image
+          storage, Brevo for verification and password-reset email delivery,
+          and Firebase Cloud Messaging for supported push notifications.
+          Information needed for a feature may be processed by the relevant
+          provider to deliver that service. We may also disclose information
+          when required by law or when reasonably necessary to protect users,
+          the public, or the security of REunited.
         </p>
-      </div>
+      </PolicySection>
+
+      <PolicySection title="PERMISSIONS & YOUR CHOICES">
+        <p style={{ color: "#6B6459" }}>
+          Location, Camera, Photos, and Notifications are used only when needed
+          for the related app features and subject to your device permissions.
+          You may deny a permission or later change it in your device settings.
+          Some features may be limited when a required permission is unavailable.
+          You may also manage account information and public-sharing choices in
+          REunited.
+        </p>
+      </PolicySection>
+
+      <PolicySection title="DATA RETENTION & ACCOUNT DELETION">
+        <p style={{ color: "#6B6459" }}>
+          We retain information while your account is active and as needed to
+          provide REunited, maintain safety and recovery records, resolve abuse
+          reports, or meet applicable legal obligations. You can initiate account
+          deletion in <span className="font-semibold">Settings → Delete My Account</span>.
+          Deletion permanently removes your personal profile and contact
+          information, private pet identifiers and pet photos, notifications,
+          message text you sent, sign-in access, and other account-linked private
+          data handled by the deletion process. Community recovery history may be
+          retained in anonymized form so reports, sightings, and reunion records
+          involving other users remain intact. Active missing-pet searches must
+          be resolved before account deletion.
+        </p>
+      </PolicySection>
 
       <PolicySection title="CONTACT & SUPPORT">
         <p style={{ color: "#6B6459" }}>
-          For safety reports, moderation questions, privacy requests, or support,
-          contact REunited at <span className="font-semibold">{SUPPORT_EMAIL}</span>.
+          For safety reports, moderation questions, privacy requests, account or
+          data-deletion questions, or support, contact REunited at <span className="font-semibold">{SUPPORT_EMAIL}</span>.
         </p>
       </PolicySection>
 
