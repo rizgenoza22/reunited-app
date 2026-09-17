@@ -12573,6 +12573,111 @@ function FounderWelcomeScreen({ rank, onContinue }) {
   );
 }
 
+
+function PublicSupportPage() {
+  const supportEmail = "reunitedphhome@gmail.com";
+
+  const sectionStyle = { marginTop: 28 };
+  const headingStyle = { margin: "0 0 8px", fontSize: 20, color: "#20291F" };
+  const paragraphStyle = { margin: "0 0 10px", lineHeight: 1.65, color: "#4F594D" };
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#F6F1E7",
+        color: "#20291F",
+        padding: "32px 18px 56px",
+        fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      }}
+    >
+      <article
+        style={{
+          width: "100%",
+          maxWidth: 820,
+          margin: "0 auto",
+          background: "#FFFFFF",
+          border: "1px solid #DDD2B6",
+          borderRadius: 18,
+          padding: "32px 28px",
+          boxShadow: "0 12px 34px rgba(32, 41, 31, 0.08)",
+        }}
+      >
+        <p style={{ margin: "0 0 8px", fontWeight: 800, letterSpacing: "0.08em", color: "#D97868" }}>
+          REUNITED SUPPORT
+        </p>
+        <h1 style={{ margin: "0 0 10px", fontSize: 34, lineHeight: 1.15 }}>How can we help?</h1>
+        <p style={paragraphStyle}>
+          REunited helps communities report missing pets, share sightings, communicate, and work
+          together to bring pets home.
+        </p>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>Contact Support</h2>
+          <p style={paragraphStyle}>
+            For account, app, safety, or technical support, email{" "}
+            <a href={`mailto:${supportEmail}`} style={{ color: "#B95F52", fontWeight: 700 }}>
+              {supportEmail}
+            </a>.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>Account and Sign-In Help</h2>
+          <p style={paragraphStyle}>
+            If you cannot sign in, use the password-reset option on the login screen. For email
+            verification or other account-access issues, contact Support using the email above.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>Missing Pet and Sighting Help</h2>
+          <p style={paragraphStyle}>
+            You can add your pet, create a missing-pet report, and submit sightings with photos and
+            location information from within REunited. Please provide accurate information and only
+            upload content you have the right to share.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>Safety, Reporting, and Blocking</h2>
+          <p style={paragraphStyle}>
+            REunited provides tools to report users or inappropriate content and to block users.
+            Use these controls when you encounter abuse, harassment, misleading information, or
+            other content that violates the community rules. For urgent real-world emergencies,
+            contact the appropriate local emergency service.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>Delete Your Account</h2>
+          <p style={paragraphStyle}>
+            Account deletion is available inside REunited from your account/profile settings.
+            Follow the on-screen confirmation steps to request deletion. If you cannot access your
+            account, contact Support for assistance.
+          </p>
+        </section>
+
+        <section style={sectionStyle}>
+          <h2 style={headingStyle}>Privacy</h2>
+          <p style={paragraphStyle}>
+            Read the{" "}
+            <a href="/privacy" style={{ color: "#B95F52", fontWeight: 700 }}>
+              REunited Privacy Policy
+            </a>{" "}
+            for information about data collection, location privacy, photos, messaging, and account
+            deletion.
+          </p>
+        </section>
+
+        <p style={{ marginTop: 34, marginBottom: 0, fontSize: 14, color: "#667064" }}>
+          REunited - Support
+        </p>
+      </article>
+    </main>
+  );
+}
+
 function PublicPrivacyPolicyPage() {
   return (
     <main
@@ -12704,6 +12809,9 @@ export default function App() {
   const isPrivacyRoute =
     typeof window !== "undefined" &&
     window.location.pathname === "/privacy";
+  const isSupportRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname === "/support";
   const isPasswordResetRoute =
     typeof window !== "undefined" &&
     window.location.pathname === "/reset-password";
@@ -12714,9 +12822,11 @@ export default function App() {
   const [view, setView] = useState(
     isPrivacyRoute
       ? "privacy"
-      : isPasswordResetRoute
-        ? "resetPassword"
-        : "onboarding",
+      : isSupportRoute
+        ? "support"
+        : isPasswordResetRoute
+          ? "resetPassword"
+          : "onboarding",
   ); // "privacy" | "onboarding" | "resetPassword" | "founderWelcome" | "app" | "admin"
   const [onboardingInitialStage, setOnboardingInitialStage] = useState("welcome");
   const [onboardingProfile, setOnboardingProfile] = useState(null); // { contact, contactMethod, fullName, address, emergencyContactName, emergencyContactPhone }
@@ -12871,6 +12981,8 @@ export default function App() {
       <div className="amr-root w-full max-w-sm">
         {view === "privacy" ? (
           <PublicPrivacyPolicyPage />
+        ) : view === "support" ? (
+          <PublicSupportPage />
         ) : view === "resetPassword" ? (
           <ResetPasswordScreen
             token={resetToken}
