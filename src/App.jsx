@@ -4718,10 +4718,18 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSe
             >
               <div className="flex items-center gap-3">
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shrink-0"
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shrink-0 overflow-hidden"
                   style={{ background: pet.color }}
                 >
-                  {pet.name[0]}
+                  {pet.primaryPhotoUrl && isRealPhoto(pet.primaryPhotoUrl) ? (
+                    <img
+                      src={pet.primaryPhotoUrl}
+                      alt={`${pet.name} profile`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    pet.name[0]
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold">{pet.name}</div>
@@ -13278,6 +13286,7 @@ setView("founderWelcome");
     </div>
   );
 }
+
 
 
 
