@@ -9500,10 +9500,18 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost
               className="amr-panel rounded-lg overflow-hidden text-left w-full"
             >
               <div
-                className="w-full h-32 flex items-center justify-center"
-                style={{ background: story.photoColor }}
+                className="w-full h-32 flex items-center justify-center overflow-hidden"
+                style={{ background: story.photoColor || "#2F6E62" }}
               >
-                <Heart size={32} color="#F2E9D8" fill="#F2E9D8" />
+                {story.photoUrl ? (
+                  <img
+                    src={story.photoUrl}
+                    alt={`${story.petName || "Pet"} reunion`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Heart size={32} color="#F2E9D8" fill="#F2E9D8" />
+                )}
               </div>
               <div className="p-3.5">
                 <div className="flex items-center justify-between mb-1.5">
@@ -13270,5 +13278,6 @@ setView("founderWelcome");
     </div>
   );
 }
+
 
 
