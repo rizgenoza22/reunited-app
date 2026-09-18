@@ -835,3 +835,64 @@ export async function reviewAdminUserReport(
   return handleResponse(response);
 }
 
+
+
+// ======================================================
+// COMMUNITY PHOTO POSTS
+// ======================================================
+
+export async function getCommunityPosts() {
+  const response = await fetch(
+    `${API_BASE_URL}/community/posts`,
+    {
+      method: "GET",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function createCommunityPost({
+  petId,
+  caption = "",
+  file,
+}) {
+  if (!file) {
+    throw new Error("Choose a photo before sharing.");
+  }
+
+  const formData = new FormData();
+  formData.append("pet_id", String(petId));
+  formData.append("caption", caption);
+  formData.append("file", file);
+
+  const response = await fetch(
+    `${API_BASE_URL}/community/posts`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+      },
+      body: formData,
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function toggleCommunityPostLike(postId) {
+  const response = await fetch(
+    `${API_BASE_URL}/community/posts/${Number(postId)}/like`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}

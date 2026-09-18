@@ -80,6 +80,9 @@ import {
   reportUser,
   getAdminUserReports,
   reviewAdminUserReport,
+  getCommunityPosts,
+  createCommunityPost,
+  toggleCommunityPostLike,
 } from "./api";
 // The app's icon mark -- the actual approved badge image (navy circle,
 // coral ring, cream heart), embedded as a data URI. Replaces both the
@@ -1475,7 +1478,9 @@ const [nearbyError, setNearbyError] = useState(null);
   const [thankYouMessage, setThankYouMessage] = useState("");
   const [reunionMethod, setReunionMethod] = useState("SELF_FOUND");
   const [reunionStory, setReunionStory] = useState("");
-  const [posts, setPosts] = useState(INITIAL_POSTS);
+  const [posts, setPosts] = useState([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityError, setCommunityError] = useState(null);
   const [pets, setPets] = useState([]);
   const [petsLoading, setPetsLoading] = useState(true);
   const [petsError, setPetsError] = useState(null);
@@ -3052,14 +3057,54 @@ const selectedPet = [
     }
   }
 
-  function addPost(newPost) {
-    setPosts((prev) => [newPost, ...prev]);
+  async function refreshCommunityPosts() {
+    setCommunityLoading(true);
+    setCommunityError(null);
+    try {
+      const data = await getCommunityPosts();
+      setPosts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Unable to load Community posts:", error);
+      setCommunityError(error.message || "Unable to load Community posts.");
+    } finally {
+      setCommunityLoading(false);
+    }
+  }
+
+  async function addPost({ petId, caption, file }) {
+    const saved = await createCommunityPost({
+      petId,
+      caption,
+      file,
+    });
+    setPosts((prev) => [saved, ...prev.filter((p) => p.id !== saved.id)]);
     setScreen("feed");
   }
 
-  function likePost(postId) {
-    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes: p.likes + 1 } : p)));
+  async function likePost(postId) {
+    try {
+      const result = await toggleCommunityPostLike(postId);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                likes: result.likes,
+                likedByMe: result.liked,
+              }
+            : p,
+        ),
+      );
+    } catch (error) {
+      console.error("Unable to update Community like:", error);
+      setCommunityError(error.message || "Unable to update like.");
+    }
   }
+
+  useEffect(() => {
+    if (screen !== "feed") return;
+    void refreshCommunityPosts();
+  }, [screen]);
 
   async function addPet(newPet) {
     const photoFiles =
@@ -4250,6 +4295,8 @@ onRefreshNearby={loadNearbyAlerts}
       {screen === "feed" && (
         <FeedScreen
           posts={posts}
+          communityLoading={communityLoading}
+          communityError={communityError}
           onLike={likePost}
           onNewPost={() => setScreen("newPost")}
           onAddPet={() => setScreen("addPet")}
@@ -9327,7 +9374,7 @@ function TabBar({
   );
 }
 
-function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStories, reunionStoriesLoading, onViewReunionStory }) {
+function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost, onAddPet, hasPets, reunionStories, reunionStoriesLoading, onViewReunionStory }) {
   const [subTab, setSubTab] = useState("photos"); // "photos" | "stories"
   return (
     <div>
@@ -9375,34 +9422,36 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
             </div>
           )}
 
+          {communityLoading && (
+            <p className="text-sm italic mb-3" style={{ color: "#6B6459" }}>
+              Loading Community photos...
+            </p>
+          )}
+          {communityError && (
+            <p className="text-sm mb-3" style={{ color: "#B42318" }}>
+              {communityError}
+            </p>
+          )}
+          {!communityLoading && !communityError && posts.length === 0 && (
+            <p className="text-sm italic mb-3" style={{ color: "#6B6459" }}>
+              No Community photos yet. Be the first to share one.
+            </p>
+          )}
           <div className="flex flex-col gap-4">
             {posts.map((post) => (
               <div key={post.id} className="amr-panel rounded-lg overflow-hidden">
                 <div
-                  className="relative w-full h-48 flex items-center justify-center"
-                  style={{ background: post.photoColor }}
+                  className="relative w-full h-48 flex items-center justify-center overflow-hidden"
+                  style={{ background: post.photoColor || "#2F6E62" }}
                 >
-                  <HeartMark size={48} color="#F2E9D8" />
-                  {post.mediaType === "video" && (
-                    <>
-                      <div
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ background: "rgba(32,41,31,0.15)" }}
-                      >
-                        <div
-                          className="w-14 h-14 rounded-full flex items-center justify-center"
-                          style={{ background: "rgba(242,233,216,0.9)", border: "2px solid #20291F" }}
-                        >
-                          <Play size={22} color="#20291F" fill="#20291F" />
-                        </div>
-                      </div>
-                      <span
-                        className="absolute bottom-2 right-2 text-xs font-semibold px-1.5 py-0.5 rounded"
-                        style={{ background: "rgba(32,41,31,0.75)", color: "#F2E9D8" }}
-                      >
-                        {post.durationLabel}
-                      </span>
-                    </>
+                  {post.photoUrl ? (
+                    <img
+                      src={post.photoUrl}
+                      alt={`${post.dogName || "Pet"} Community post`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <HeartMark size={48} color="#F2E9D8" />
                   )}
                 </div>
                 <div className="p-3.5">
@@ -9418,7 +9467,10 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
                       className="flex items-center gap-1 text-xs font-semibold"
                       style={{ color: "#E2572B" }}
                     >
-                      <Heart size={14} />
+                      <Heart
+                        size={14}
+                        fill={post.likedByMe ? "#E2572B" : "none"}
+                      />
                       {post.likes}
                     </button>
                   </div>
@@ -9482,94 +9534,152 @@ function FeedScreen({ posts, onLike, onNewPost, onAddPet, hasPets, reunionStorie
 }
 
 function NewPostScreen({ pets, onBack, onSubmit }) {
-  const [mediaType, setMediaType] = useState("photo");
-  const [captured, setCaptured] = useState(false);
-  const [photoColor, setPhotoColor] = useState(null);
-  const [durationLabel, setDurationLabel] = useState(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [selectedPetId, setSelectedPetId] = useState(pets[0]?.id || "");
   const [caption, setCaption] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
-  function chooseMediaType(type) {
-    setMediaType(type);
-    setCaptured(false);
-    setPhotoColor(null);
-    setDurationLabel(null);
-  }
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
-  function capture() {
-    setCaptured(true);
-    setPhotoColor(POST_PHOTO_COLORS[Math.floor(Math.random() * POST_PHOTO_COLORS.length)]);
-    if (mediaType === "video") {
-      const seconds = Math.floor(5 + Math.random() * 25);
-      setDurationLabel(`0:${String(seconds).padStart(2, "0")}`);
+  function chooseFile(file) {
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setSubmitError("Only JPG, PNG, and WEBP images are allowed.");
+      return;
     }
-  }
 
-  function submit() {
-    const pet = pets.find((p) => p.id === selectedPetId);
-    onSubmit({
-      id: `p-${Date.now()}`,
-      posterName: "You",
-      dogName: pet?.name || "My dog",
-      caption: caption.trim() || "Just being a good dog.",
-      photoColor,
-      timeLabel: "just now",
-      likes: 0,
-      mediaType,
-      ...(mediaType === "video" ? { durationLabel } : {}),
+    if (file.size > 5 * 1024 * 1024) {
+      setSubmitError("File too large. Maximum photo size is 5 MB.");
+      return;
+    }
+
+    setSubmitError(null);
+    setSelectedFile(file);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
     });
   }
 
-  const canSubmit = captured && !!selectedPetId;
+  function clearPhoto() {
+    setSelectedFile(null);
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  }
+
+  async function submit() {
+    if (!selectedFile || !selectedPetId || submitting) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await onSubmit({
+        petId: selectedPetId,
+        caption: caption.trim(),
+        file: selectedFile,
+      });
+    } catch (error) {
+      console.error("Unable to share Community photo:", error);
+      setSubmitError(error.message || "Unable to share Community photo.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const canSubmit =
+    !!selectedFile &&
+    !!selectedPetId &&
+    !submitting;
 
   return (
     <div>
       <ScreenHeader title="Post a Photo" onBack={onBack} />
 
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => chooseMediaType("photo")}
-          className={`amr-chip flex-1 py-2 rounded-md text-sm flex items-center justify-center gap-1.5 ${mediaType === "photo" ? "amr-chip-active" : ""}`}
-        >
-          <Camera size={15} />
-          Photo
-        </button>
-        <button
-          onClick={() => chooseMediaType("video")}
-          className={`amr-chip flex-1 py-2 rounded-md text-sm flex items-center justify-center gap-1.5 ${mediaType === "video" ? "amr-chip-active" : ""}`}
-        >
-          <Video size={15} />
-          Video
-        </button>
-      </div>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => chooseFile(e.target.files?.[0])}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => chooseFile(e.target.files?.[0])}
+      />
 
-      <div
-        onClick={!captured ? capture : undefined}
-        className="amr-map relative w-full h-56 rounded-lg overflow-hidden mb-4 flex items-center justify-center"
-        style={{
-          cursor: captured ? "default" : "pointer",
-          backgroundColor: captured ? photoColor : undefined,
-          backgroundImage: captured ? "none" : undefined,
-        }}
-      >
-        {!captured ? (
-          <div className="flex flex-col items-center gap-2" style={{ color: "#6B6459" }}>
-            {mediaType === "video" ? <Video size={28} /> : <Camera size={28} />}
-            <span className="text-sm font-semibold">
-              {mediaType === "video" ? "Tap to record a video" : "Tap to take a photo"}
-            </span>
+      {!previewUrl ? (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="amr-btn-secondary py-4 rounded-md flex flex-col items-center justify-center gap-2"
+          >
+            <Camera size={24} />
+            <span className="text-sm font-semibold">Take Photo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            className="amr-btn-secondary py-4 rounded-md flex flex-col items-center justify-center gap-2"
+          >
+            <ImageIcon size={24} />
+            <span className="text-sm font-semibold">Choose Gallery</span>
+          </button>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <div className="amr-map relative w-full h-64 rounded-lg overflow-hidden">
+            <img
+              src={previewUrl}
+              alt="Community photo preview"
+              className="w-full h-full object-cover"
+            />
           </div>
-        ) : (
-          <div className="amr-fade-in flex flex-col items-center gap-2">
-            <HeartMark size={48} color="#F2E9D8" />
-            {mediaType === "video" && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: "rgba(32,41,31,0.6)", color: "#F2E9D8" }}>
-                {durationLabel} recorded
-              </span>
-            )}
+          <div className="flex gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="amr-btn-secondary flex-1 py-2 rounded-md text-sm"
+            >
+              Retake
+            </button>
+            <button
+              type="button"
+              onClick={clearPhoto}
+              className="amr-btn-secondary flex-1 py-2 rounded-md text-sm"
+            >
+              Remove
+            </button>
           </div>
-        )}
-      </div>
+          <p className="text-xs mt-2" style={{ color: "#6B6459" }}>
+            Preview only — this photo is not uploaded until you tap Share to Community.
+          </p>
+        </div>
+      )}
 
       <div className="font-semibold text-sm mb-2">Which pet?</div>
       <select
@@ -9585,15 +9695,32 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
       <div className="font-semibold text-sm mb-2">Caption</div>
       <textarea
         value={caption}
-        onChange={(e) => setCaption(e.target.value)}
+        onChange={(e) => setCaption(e.target.value.slice(0, 500))}
         placeholder="What's the story here?"
-        className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-5"
+        className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-1"
         rows={3}
+        maxLength={500}
       />
+      <div className="text-xs text-right mb-4" style={{ color: "#6B6459" }}>
+        {caption.length}/500
+      </div>
 
-      <button disabled={!canSubmit} onClick={submit} className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2">
+      {submitError && (
+        <div
+          className="rounded-md px-3 py-2 text-sm mb-4"
+          style={{ background: "#FEE4E2", color: "#B42318" }}
+        >
+          {submitError}
+        </div>
+      )}
+
+      <button
+        disabled={!canSubmit}
+        onClick={submit}
+        className="amr-btn-primary w-full py-3 rounded-md flex items-center justify-center gap-2"
+      >
         <Send size={16} />
-        Share to Community
+        {submitting ? "Sharing..." : "Share to Community"}
       </button>
     </div>
   );
