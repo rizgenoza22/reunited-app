@@ -9538,7 +9538,7 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
   const galleryInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [selectedPetId, setSelectedPetId] = useState(pets[0]?.id || "");
+  const [selectedPetId, setSelectedPetId] = useState(pets[0]?.backendPetId || "");
   const [caption, setCaption] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -9688,7 +9688,7 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
       >
         {pets.map((pet) => (
-          <option key={pet.id} value={pet.id}>{pet.name}</option>
+          <option key={pet.id} value={pet.backendPetId}>{pet.name}</option>
         ))}
       </select>
 
