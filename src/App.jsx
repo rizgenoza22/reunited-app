@@ -9697,7 +9697,7 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
 
       console.error("Unable to take Community photo:", error);
       setSubmitError(
-        `Camera error: ${message || "Unknown camera error"}`,
+        "Unable to use the camera. Please check Camera access for REunited in iPhone Settings and try again.",
       );
     }
   }
@@ -10272,7 +10272,7 @@ function ReportSightingScreen({
 
       console.error("Unable to take sighting photo:", error);
       setMessage(
-        `Camera error: ${errorMessage || "Unknown camera error"}`,
+        "Unable to use the camera. Please check Camera access for REunited in iPhone Settings and try again.",
       );
     }
   }
