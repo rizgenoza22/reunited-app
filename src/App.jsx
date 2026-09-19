@@ -18,6 +18,11 @@ import "leaflet/dist/leaflet.css";
 // ever importing the package, as this used to do, left it permanently
 // undefined even with the plugin fully installed and synced natively.
 import { Capacitor } from '@capacitor/core';
+import {
+  Camera as NativeCamera,
+  CameraResultType,
+  CameraSource,
+} from '@capacitor/camera';
 import { PushNotifications } from '@capacitor/push-notifications';
 import {
   MapPin,
@@ -9620,6 +9625,83 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   }
 
+  async function takePhoto() {
+    setSubmitError(null);
+
+    if (!Capacitor.isNativePlatform()) {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    try {
+      let permissions = await NativeCamera.checkPermissions();
+
+      if (permissions.camera === "prompt" || permissions.camera === "prompt-with-rationale") {
+        permissions = await NativeCamera.requestPermissions({
+          permissions: ["camera"],
+        });
+      }
+
+      if (permissions.camera !== "granted") {
+        setSubmitError(
+          "Camera access is required to take a photo. Please enable Camera access for REunited in iPhone Settings.",
+        );
+        return;
+      }
+
+      const photo = await NativeCamera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        correctOrientation: true,
+        saveToGallery: false,
+      });
+
+      if (!photo.webPath) {
+        throw new Error("Camera did not return a photo.");
+      }
+
+      const response = await fetch(photo.webPath);
+      const blob = await response.blob();
+
+      const mimeType =
+        blob.type && blob.type.startsWith("image/")
+          ? blob.type
+          : photo.format === "png"
+            ? "image/png"
+            : "image/jpeg";
+
+      const extension =
+        mimeType === "image/png"
+          ? "png"
+          : mimeType === "image/webp"
+            ? "webp"
+            : "jpg";
+
+      const file = new File(
+        [blob],
+        `community-camera-${Date.now()}.${extension}`,
+        { type: mimeType },
+      );
+
+      chooseFile(file);
+    } catch (error) {
+      const message = String(error?.message || error || "");
+
+      if (
+        message.toLowerCase().includes("cancel") ||
+        message.toLowerCase().includes("user cancelled")
+      ) {
+        return;
+      }
+
+      console.error("Unable to take Community photo:", error);
+      setSubmitError(
+        "Unable to use the camera. Please check Camera access for REunited in iPhone Settings and try again.",
+      );
+    }
+  }
+
   async function submit() {
     if (!selectedFile || !selectedPetId || submitting) return;
 
@@ -9669,7 +9751,7 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <button
             type="button"
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={takePhoto}
             className="amr-btn-secondary py-4 rounded-md flex flex-col items-center justify-center gap-2"
           >
             <Camera size={24} />
@@ -9696,7 +9778,7 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
           <div className="flex gap-2 mt-2">
             <button
               type="button"
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={takePhoto}
               className="amr-btn-secondary flex-1 py-2 rounded-md text-sm"
             >
               Retake
@@ -10111,6 +10193,90 @@ function ReportSightingScreen({
     setPhotos(selected);
   }
 
+  async function takeSightingPhoto() {
+    setMessage("");
+
+    if (!Capacitor.isNativePlatform()) {
+      document.getElementById("sighting-camera-input")?.click();
+      return;
+    }
+
+    try {
+      let permissions = await NativeCamera.checkPermissions();
+
+      if (
+        permissions.camera === "prompt" ||
+        permissions.camera === "prompt-with-rationale"
+      ) {
+        permissions = await NativeCamera.requestPermissions({
+          permissions: ["camera"],
+        });
+      }
+
+      if (permissions.camera !== "granted") {
+        setMessage(
+          "Camera access is required to take a photo. Please enable Camera access for REunited in iPhone Settings.",
+        );
+        return;
+      }
+
+      const photo = await NativeCamera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        correctOrientation: true,
+        saveToGallery: false,
+      });
+
+      if (!photo.webPath) {
+        throw new Error("Camera did not return a photo.");
+      }
+
+      const response = await fetch(photo.webPath);
+      const blob = await response.blob();
+
+      const mimeType =
+        blob.type && blob.type.startsWith("image/")
+          ? blob.type
+          : photo.format === "png"
+            ? "image/png"
+            : "image/jpeg";
+
+      const extension =
+        mimeType === "image/png"
+          ? "png"
+          : mimeType === "image/webp"
+            ? "webp"
+            : "jpg";
+
+      const file = new File(
+        [blob],
+        `sighting-camera-${Date.now()}.${extension}`,
+        { type: mimeType },
+      );
+
+      setPhotos((current) =>
+        [...current, file].slice(0, MAX_SIGHTING_PHOTOS),
+      );
+
+      setMessage("Photo captured.");
+    } catch (error) {
+      const errorMessage = String(error?.message || error || "");
+
+      if (
+        errorMessage.toLowerCase().includes("cancel") ||
+        errorMessage.toLowerCase().includes("user cancelled")
+      ) {
+        return;
+      }
+
+      console.error("Unable to take sighting photo:", error);
+      setMessage(
+        "Unable to use the camera. Please check Camera access for REunited in iPhone Settings and try again.",
+      );
+    }
+  }
+
   function getCurrentLocation() {
     if (typeof ensureLocationConsent === "function") {
       return ensureLocationConsent(async () => {
@@ -10447,17 +10613,23 @@ function ReportSightingScreen({
       </p>
 
       <div className="grid grid-cols-2 gap-2">
-          <label className="amr-btn-secondary rounded-md py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer">
+          <button
+            type="button"
+            onClick={takeSightingPhoto}
+            className="amr-btn-secondary rounded-md py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer"
+          >
             <Camera size={15} />
             Take Photo
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              capture="environment"
-              className="hidden"
-              onChange={choosePhotos}
-            />
-          </label>
+          </button>
+
+          <input
+            id="sighting-camera-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            className="hidden"
+            onChange={choosePhotos}
+          />
 
           <label className="amr-btn-secondary rounded-md py-2.5 text-sm flex items-center justify-center gap-2 cursor-pointer">
             <ImageIcon size={15} />
