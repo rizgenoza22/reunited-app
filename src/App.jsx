@@ -1495,6 +1495,12 @@ const [nearbyError, setNearbyError] = useState(null);
   const [notificationsError, setNotificationsError] = useState(null);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [pushSetupStatus, setPushSetupStatus] = useState(() => {
+    if (Capacitor.isNativePlatform()) {
+      return localStorage.getItem("reunited_push_registered") === "true"
+        ? "registered"
+        : "idle";
+    }
+
     if (typeof Notification === "undefined") return "unsupported";
     if (Notification.permission === "denied") return "denied";
     if (
