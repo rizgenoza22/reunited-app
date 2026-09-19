@@ -7610,6 +7610,7 @@ function ActiveScreen({
   onViewTrail,
 }) {
   const [now, setNow] = useState(() => Date.now());
+  const [enlargedPotentialMatch, setEnlargedPotentialMatch] = useState(null);
   const activeMapContainerRef = useRef(null);
   const activeLeafletMapRef = useRef(null);
   const activeMarkerRef = useRef(null);
@@ -8219,12 +8220,20 @@ function ActiveScreen({
                   </div>
 
                   {match.photos?.[0] && (
-                    <img
-                      src={match.photos[0]}
-                      alt="Potential sighting"
-                      className="w-full h-44 object-cover rounded-lg mb-3"
-                      style={{ border: "1px solid #D2C39E" }}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setEnlargedPotentialMatch(match)}
+                      className="block w-full mb-3"
+                      style={{ cursor: "zoom-in" }}
+                      aria-label="View potential sighting photo full screen"
+                    >
+                      <img
+                        src={match.photos[0]}
+                        alt="Potential sighting"
+                        className="w-full h-44 object-cover rounded-lg"
+                        style={{ border: "1px solid #D2C39E" }}
+                      />
+                    </button>
                   )}
 
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
@@ -8360,6 +8369,15 @@ function ActiveScreen({
       >
         Back to my pets
       </button>
+
+      {enlargedPotentialMatch && (
+        <PhotoLightbox
+          photos={enlargedPotentialMatch.photos || []}
+          title="Potential sighting"
+          subtitle="Tap or swipe to view sighting photos"
+          onClose={() => setEnlargedPotentialMatch(null)}
+        />
+      )}
     </div>
   );
 }
