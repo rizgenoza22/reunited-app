@@ -37,6 +37,8 @@
 	<string>REunited uses your camera so you can take a photo of a pet when reporting it missing, reporting a sighting, or reporting a found pet.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>REunited accesses your photo library so you can choose an existing photo of a pet when reporting it missing, reporting a sighting, or reporting a found pet.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>REunited may save photos you take while reporting a missing pet, found pet, or sighting.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
