@@ -33,7 +33,7 @@ workflows:
       xcode: latest
       ios_signing:
         provisioning_profiles:
-          - reunited_app_store_p12_2
+          - reunited_app_store_push
         certificates:
           - "REunited Distribution P12"
       vars:
