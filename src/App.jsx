@@ -4131,7 +4131,7 @@ nearbyError={nearbyError}
 onRefreshNearby={loadNearbyAlerts}
           foundPetsBoard={foundPetsBoard}
           sightingsByPet={sightingsByPet}
-          onOpenTrail={openActiveSearch}
+          onOpenTrail={openTrail}
           onReportSighting={openReportSighting}
           onOpenProfile={(petId) => openPetProfile(petId, "alerts")}
           onFoundPet={openFoundPet}
