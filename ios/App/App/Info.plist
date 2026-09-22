@@ -26,7 +26,7 @@
 	<true/>
 	<!--
 	  Privacy usage-description strings. Required by iOS before it will show
-	  the system permission prompt for each capability -- without these keys,
+	  the system permission prompt for each capability. Without these keys,
 	  the app crashes immediately (not just an App Store rejection) the first
 	  time it calls navigator.geolocation or opens the photo/camera picker
 	  for a missing-pet report, sighting, or pet profile photo.
@@ -62,10 +62,6 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
