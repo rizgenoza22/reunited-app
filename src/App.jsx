@@ -4131,7 +4131,7 @@ nearbyError={nearbyError}
 onRefreshNearby={loadNearbyAlerts}
           foundPetsBoard={foundPetsBoard}
           sightingsByPet={sightingsByPet}
-          onOpenTrail={openTrail}
+          onOpenTrail={openActiveSearch}
           onReportSighting={openReportSighting}
           onOpenProfile={(petId) => openPetProfile(petId, "alerts")}
           onFoundPet={openFoundPet}
@@ -5321,7 +5321,7 @@ function AlertsScreen({
                     onClick={(e) => { e.stopPropagation(); onOpenTrail(pet.id); }}
                     className="amr-btn-teal w-full py-2 rounded-md text-sm"
                   >
-                    View sighting trail
+                    View Sightings
                   </button>
                 </div>
               );
