@@ -3718,17 +3718,31 @@ const selectedPet = [
     loadNearbyAlerts();
 
     const refreshAlertSightings = async () => {
-      const activePets = pets.filter(
-        (pet) =>
-          pet.status === "missing" &&
-          pet.activeReportId
-      );
+      const activePets = pets
+        .map((pet) => ({
+          pet,
+          reportId:
+            Number(reportIdByPet[pet.id]) ||
+            Number(pet.reportId) ||
+            null,
+        }))
+        .filter(
+          ({ pet, reportId }) =>
+            pet.status === "missing" &&
+            reportId
+        );
 
       const results = await Promise.all(
-        activePets.map(async (pet) => {
+        activePets.map(async ({ pet, reportId }) => {
           try {
-            const sightings = await getSightings(pet.activeReportId);
-            return [pet.id, Array.isArray(sightings) ? sightings : []];
+            const response = await getSightings(reportId);
+            const sightings = Array.isArray(response)
+              ? response
+              : Array.isArray(response?.sightings)
+                ? response.sightings
+                : [];
+
+            return [pet.id, sightings];
           } catch (error) {
             console.error(
               `Failed to load sightings for pet ${pet.id}:`,
