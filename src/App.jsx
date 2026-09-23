@@ -3711,11 +3711,13 @@ const selectedPet = [
   }
 
   useEffect(() => {
-    if (screen !== "alerts") {
+    if (screen !== "home" && screen !== "alerts") {
       return;
     }
 
-    loadNearbyAlerts();
+    if (screen === "alerts") {
+      loadNearbyAlerts();
+    }
 
     const refreshAlertSightings = async () => {
       const activePets = pets
