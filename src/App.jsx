@@ -3716,7 +3716,37 @@ const selectedPet = [
     }
 
     loadNearbyAlerts();
-  }, [screen]);
+
+    const refreshAlertSightings = async () => {
+      const activePets = pets.filter(
+        (pet) =>
+          pet.status === "missing" &&
+          pet.activeReportId
+      );
+
+      const results = await Promise.all(
+        activePets.map(async (pet) => {
+          try {
+            const sightings = await getSightings(pet.activeReportId);
+            return [pet.id, Array.isArray(sightings) ? sightings : []];
+          } catch (error) {
+            console.error(
+              `Failed to load sightings for pet ${pet.id}:`,
+              error,
+            );
+            return [pet.id, []];
+          }
+        }),
+      );
+
+      setSightingsByPet((current) => ({
+        ...current,
+        ...Object.fromEntries(results),
+      }));
+    };
+
+    refreshAlertSightings();
+  }, [screen, pets]);
 
   useEffect(() => {
     loadNotificationUnreadCount();
