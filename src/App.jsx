@@ -3891,6 +3891,7 @@ const selectedPet = [
           pets={pets}
           activeCases={activeCases}
           reunitedCases={reunitedCases}
+          sightingsByPet={sightingsByPet}
           onReport={startReport}
           onOpenActiveSearch={openActiveSearch}
           onOpenTrail={openTrail}
@@ -4474,7 +4475,7 @@ function ConfidenceBadge({ level }) {
   );
 }
 
-function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSearch, onOpenTrail, onAddPet, onOpenProfile }) {
+function HomeScreen({ pets, activeCases, reunitedCases, sightingsByPet, onReport, onOpenActiveSearch, onOpenTrail, onAddPet, onOpenProfile }) {
   return (
     <div>
       <FixedHeader height={140}>
@@ -4499,6 +4500,7 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSe
             !isBackendReunited &&
             (pet.backendStatus === "MISSING" || activeCases[pet.id]) &&
             !reunion;
+          const sightingCount = (sightingsByPet[pet.id] || []).length;
           return (
             <div
               key={pet.id}
@@ -4548,6 +4550,9 @@ function HomeScreen({ pets, activeCases, reunitedCases, onReport, onOpenActiveSe
 
               {isActive ? (
                 <div className="mt-3 flex flex-col gap-2">
+                  <div className="text-xs" style={{ color: "#6B6459" }}>
+                    👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
