@@ -3761,7 +3761,7 @@ const selectedPet = [
     };
 
     refreshAlertSightings();
-  }, [screen, pets]);
+  }, [screen, pets, reportIdByPet, activeCases, reunitedCases]);
 
   useEffect(() => {
     loadNotificationUnreadCount();
