@@ -3728,7 +3728,8 @@ const selectedPet = [
         }))
         .filter(
           ({ pet, reportId }) =>
-            pet.status === "missing" &&
+            activeCases[pet.id] &&
+            !reunitedCases[pet.id] &&
             reportId
         );
 
