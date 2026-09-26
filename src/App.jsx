@@ -8409,6 +8409,11 @@ function TrailScreen({
     }
   }
 
+  const visibleSightings = sorted.filter(
+    (s) =>
+      String(s.ownerVerdict || "").toUpperCase() !== "NOT_MY_PET",
+  );
+
   return (
     <div>
       <ScreenHeader
@@ -8425,28 +8430,22 @@ function TrailScreen({
           style={{ background: "#2F6E62" }}
         />
 
-        {sightings.length} sighting
-        {sightings.length === 1 ? "" : "s"} reported
+        {visibleSightings.length} sighting
+        {visibleSightings.length === 1 ? "" : "s"} reported
         so far
       </div>
 
       <div className="flex flex-col gap-3 mb-5">
-        {sorted.length === 0 && (
+        {visibleSightings.length === 0 && (
           <p
             className="text-sm italic"
             style={{ color: "#6B6459" }}
           >
-            No sightings yet. They'll appear here as
-            they come in.
+            No active sightings to review.
           </p>
         )}
 
-        {sorted
-          .filter(
-            (s) =>
-              String(s.ownerVerdict || "").toUpperCase() !== "NOT_MY_PET",
-          )
-          .map((s) => {
+        {visibleSightings.map((s) => {
           const firstPhoto =
             s.photos?.[0] ||
             s.photoUrl ||
