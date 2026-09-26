@@ -2831,15 +2831,22 @@ const selectedPet = [
 
       setPotentialMatchesByPet((prev) => ({
         ...prev,
-        [petId]: (prev[petId] || []).map((match) =>
-          Number(match.sightingId) === Number(sightingId)
-            ? {
-                ...match,
-                status: savedStatus,
-                reviewedAt: updated?.reviewed_at || new Date().toISOString(),
-              }
-            : match,
-        ),
+        [petId]:
+          savedStatus === "REJECTED"
+            ? (prev[petId] || []).filter(
+                (match) =>
+                  Number(match.sightingId) !== Number(sightingId),
+              )
+            : (prev[petId] || []).map((match) =>
+                Number(match.sightingId) === Number(sightingId)
+                  ? {
+                      ...match,
+                      status: savedStatus,
+                      reviewedAt:
+                        updated?.reviewed_at || new Date().toISOString(),
+                    }
+                  : match,
+              ),
       }));
     } catch (error) {
       console.error("Potential sighting review failed:", error);
