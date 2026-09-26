@@ -1106,15 +1106,6 @@ function calculateAge(birthday) {
   return `${years} year${years === 1 ? "" : "s"} old`;
 }
 
-// Mock auto-replies so a message thread feels alive in this standalone demo
-// -- stands in for the other person actually being on the other end.
-const MOCK_REPLY_POOL = [
-  "Yes! Saw them near the park entrance, heading toward the trees.",
-  "They looked okay, just a little skittish when I got close.",
-  "I can head back to that spot now if it helps.",
-  "It was quick, but I'm pretty sure it was them from the collar.",
-  "Happy to keep an eye out on my walk later today.",
-];
 
 // A fixed thread id for founding-member feedback, since there's only ever
 // one such thread per session (unlike sighting/found-pet threads, which are
@@ -3457,19 +3448,7 @@ const selectedPet = [
       [threadId]: [...(prev[threadId] || []), outgoing],
     }));
 
-    if (threadId === ADMIN_FEEDBACK_THREAD_ID) return;
 
-    setTimeout(() => {
-      const reply = {
-        sender: "them",
-        text: MOCK_REPLY_POOL[Math.floor(Math.random() * MOCK_REPLY_POOL.length)],
-        timeLabel: "just now",
-      };
-      setMessagesByThread((prev) => ({
-        ...prev,
-        [threadId]: [...(prev[threadId] || []), reply],
-      }));
-    }, 1100);
   }
 
   async function reportCurrentMessageUser() {
