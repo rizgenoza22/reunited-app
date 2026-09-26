@@ -1215,6 +1215,16 @@ function mapNearbyReport(report) {
     isBackendReport: true,
   };
 }
+function getOwnerVisibleSightings(sightings) {
+  return (Array.isArray(sightings) ? sightings : []).filter(
+    (sighting) =>
+      String(sighting?.ownerVerdict || "").toUpperCase() !== "NOT_MY_PET",
+  );
+}
+
+function getOwnerVisibleSightingCount(sightings) {
+  return getOwnerVisibleSightings(sightings).length;
+}
 function publicDisplayName(value) {
   const name = String(value || "").trim();
   if (!name) return "REunited member";
@@ -4096,7 +4106,7 @@ onRefreshNearby={loadNearbyAlerts}
           pet={selectedPet}
           isOwnPet={isOwnPet}
           isActive={isOwnPet && activeCases[selectedPet.id] && !reunitedCases[selectedPet.id]}
-          sightingCount={(sightingsByPet[selectedPet.id] || []).length}
+          sightingCount={getOwnerVisibleSightingCount(sightingsByPet[selectedPet.id])}
           onBack={() => setScreen(profileOrigin)}
           onViewTrail={() => openTrail(selectedPet.id)}
           onReportSighting={() => openReportSighting(selectedPet.id)}
@@ -4533,7 +4543,7 @@ function HomeScreen({ pets, activeCases, reunitedCases, sightingsByPet, onReport
             !isBackendReunited &&
             (pet.backendStatus === "MISSING" || activeCases[pet.id]) &&
             !reunion;
-          const sightingCount = (sightingsByPet[pet.id] || []).length;
+          const sightingCount = getOwnerVisibleSightingCount(sightingsByPet[pet.id]);
           return (
             <div
               key={pet.id}
@@ -5099,7 +5109,7 @@ function AlertsScreen({
           </div>
           <div className="flex flex-col gap-3">
             {myActivePets.map((pet) => {
-              const sightingCount = (sightingsByPet[pet.id] || []).length;
+              const sightingCount = getOwnerVisibleSightingCount(sightingsByPet[pet.id]);
               return (
                 <div
                   key={pet.id}
@@ -8409,10 +8419,7 @@ function TrailScreen({
     }
   }
 
-  const visibleSightings = sorted.filter(
-    (s) =>
-      String(s.ownerVerdict || "").toUpperCase() !== "NOT_MY_PET",
-  );
+  const visibleSightings = getOwnerVisibleSightings(sorted);
 
   return (
     <div>
