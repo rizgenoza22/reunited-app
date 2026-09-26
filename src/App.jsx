@@ -1216,10 +1216,19 @@ function mapNearbyReport(report) {
   };
 }
 function getOwnerVisibleSightings(sightings) {
-  return (Array.isArray(sightings) ? sightings : []).filter(
-    (sighting) =>
-      String(sighting?.ownerVerdict || "").toUpperCase() !== "NOT_MY_PET",
-  );
+  return (Array.isArray(sightings) ? sightings : []).filter((sighting) => {
+    const ownerVerdict = String(
+      sighting?.ownerVerdict || "",
+    ).toUpperCase();
+    const backendStatus = String(
+      sighting?.status || "",
+    ).toUpperCase();
+
+    return (
+      ownerVerdict !== "NOT_MY_PET" &&
+      backendStatus !== "REJECTED"
+    );
+  });
 }
 
 function getOwnerVisibleSightingCount(sightings) {
