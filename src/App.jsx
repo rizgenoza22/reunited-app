@@ -12078,43 +12078,120 @@ function AdminDashboardScreen({
     }
   }
 
-  const stats = [
+  const counts = adminStats?.counts || {};
+
+  const metricValue = (key) =>
+    adminStatsLoading ? "..." : Number(counts[key] || 0);
+
+  const operationalStats = [
     {
       key: "activeCases",
-      emoji: "🚨",
       label: "Active Missing Cases",
-      value: adminStatsLoading
-        ? "…"
-        : Number(adminStats?.counts?.active_missing_cases || 0),
+      value: metricValue("active_missing_cases"),
       accent: "#E2572B",
+      drilldown: true,
     },
     {
       key: "userReports",
-      emoji: "🚩",
-      label: "User Reports",
-      value: userReportsLoading ? "…" : userReports.length,
+      label: "Reports to Review",
+      value: userReportsLoading ? "..." : userReports.length,
       accent: "#E2572B",
+      drilldown: true,
     },
     {
       key: "messages",
-      emoji: "💬",
       label: "Unread Messages",
-      value: adminStatsLoading
-        ? "…"
-        : Number(adminStats?.counts?.unread_messages || 0),
+      value: metricValue("unread_messages"),
       accent: "#2F6E62",
+      drilldown: true,
     },
     {
       key: "reunitedToday",
-      emoji: "❤️",
       label: "Reunited Today",
-      value: adminStatsLoading
-        ? "…"
-        : Number(adminStats?.counts?.reunited_today || 0),
+      value: metricValue("reunited_today"),
       accent: "#2F6E62",
+      drilldown: true,
     },
   ];
 
+  const analyticsSections = [
+    {
+      title: "Users",
+      subtitle: "Registration, verification, and account activity",
+      metrics: [
+        ["Total Users", "total_users"],
+        ["Active Users", "active_users"],
+        ["Email Verified", "verified_users"],
+        ["New - 7 Days", "new_users_7d"],
+        ["New - 30 Days", "new_users_30d"],
+        ["Admins", "admin_users"],
+      ],
+    },
+    {
+      title: "Pets & Cases",
+      subtitle: "Registered pets and missing-pet reports",
+      metrics: [
+        ["Total Pets", "total_pets"],
+        ["Active Pets", "active_registered_pets"],
+        ["Missing Pets", "missing_pets"],
+        ["Archived Pets", "archived_pets"],
+        ["Total Reports", "total_reports"],
+        ["Active Cases", "active_missing_cases"],
+        ["Found Reports", "found_reports"],
+        ["Closed Reports", "closed_reports"],
+        ["Reports - 7 Days", "reports_7d"],
+        ["Reports - 30 Days", "reports_30d"],
+      ],
+    },
+    {
+      title: "Sightings & Match Quality",
+      subtitle: "All sightings are retained for historical analytics",
+      metrics: [
+        ["Total Sightings", "total_sightings"],
+        ["Today", "sightings_today"],
+        ["Last 7 Days", "sightings_7d"],
+        ["Last 30 Days", "sightings_30d"],
+        ["Pending", "pending_sightings"],
+        ["Likely Match", "likely_match_sightings"],
+        ["Not My Pet", "not_my_pet_sightings"],
+        ["Unique Reporters", "unique_sighting_reporters"],
+        ["Potential Matches", "total_potential_matches"],
+        ["Pending Matches", "pending_potential_matches"],
+        ["Verified Matches", "verified_potential_matches"],
+        ["Rejected Matches", "rejected_potential_matches"],
+      ],
+    },
+    {
+      title: "Reunions",
+      subtitle: "Successful reunion activity",
+      metrics: [
+        ["Total Reunions", "total_reunions"],
+        ["Reunited Today", "reunited_today"],
+        ["Last 30 Days", "reunions_30d"],
+      ],
+    },
+    {
+      title: "Community & Engagement",
+      subtitle: "Community participation and communication",
+      metrics: [
+        ["Community Posts", "community_posts"],
+        ["Post Likes", "community_likes"],
+        ["Messages", "total_messages"],
+        ["Notifications", "total_notifications"],
+        ["Read Notifications", "read_notifications"],
+        ["Unread Notifications", "unread_notifications"],
+      ],
+    },
+    {
+      title: "Safety & Moderation",
+      subtitle: "Reports and user safety activity",
+      metrics: [
+        ["Total User Reports", "total_user_reports"],
+        ["Pending Reports", "pending_user_reports"],
+        ["User Blocks", "total_user_blocks"],
+      ],
+    },
+  ];
   if (drilldown === "userReports") {
     return (
       <AdminUserReportsScreen
@@ -12195,34 +12272,132 @@ function AdminDashboardScreen({
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        {stats.map((stat) => (
+      <div className="mb-6">
+        <div className="flex items-end justify-between gap-3 mb-3">
+          <div>
+            <h2
+              className="amr-display text-xl"
+              style={{ color: "#20291F" }}
+            >
+              Operations
+            </h2>
+            <p
+              className="text-xs mt-1"
+              style={{ color: "#6B6459" }}
+            >
+              Items that may need administrator attention
+            </p>
+          </div>
+
           <button
-            key={stat.key}
-            onClick={() => setDrilldown(stat.key)}
-            className="amr-panel rounded-lg p-4 flex items-center justify-between text-left w-full"
+            type="button"
+            onClick={loadAdminDashboardStats}
+            disabled={adminStatsLoading}
+            className="text-xs font-semibold px-3 py-2 rounded-md disabled:opacity-50"
             style={{
-              borderLeft: `4px solid ${stat.accent}`,
+              background: "#E8EFEA",
+              color: "#2F6E62",
             }}
           >
-            <span className="text-sm font-medium">
-              {stat.emoji} {stat.label}
-            </span>
-            <span
-              className="amr-display text-2xl"
-              style={{ color: stat.accent }}
-            >
-              {stat.value}
-            </span>
+            {adminStatsLoading ? "Refreshing..." : "Refresh"}
           </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {operationalStats.map((stat) => (
+            <button
+              key={stat.key}
+              type="button"
+              onClick={() => stat.drilldown && setDrilldown(stat.key)}
+              className="amr-panel rounded-lg p-4 text-left w-full"
+              style={{
+                borderTop: `3px solid ${stat.accent}`,
+              }}
+            >
+              <span
+                className="amr-display text-2xl block"
+                style={{ color: stat.accent }}
+              >
+                {stat.value}
+              </span>
+
+              <span
+                className="text-xs font-semibold block mt-1"
+                style={{ color: "#39352F" }}
+              >
+                {stat.label}
+              </span>
+
+              <span
+                className="text-[10px] block mt-2"
+                style={{ color: "#80786C" }}
+              >
+                View details
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        {analyticsSections.map((section) => (
+          <section
+            key={section.title}
+            className="amr-panel rounded-lg p-4"
+          >
+            <div className="mb-3">
+              <h2
+                className="amr-display text-lg"
+                style={{ color: "#20291F" }}
+              >
+                {section.title}
+              </h2>
+
+              <p
+                className="text-xs mt-1"
+                style={{ color: "#6B6459" }}
+              >
+                {section.subtitle}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {section.metrics.map(([label, key]) => (
+                <div
+                  key={key}
+                  className="rounded-md p-3"
+                  style={{
+                    background: "#F7F3EA",
+                    border: "1px solid #E7DFCF",
+                  }}
+                >
+                  <div
+                    className="amr-display text-xl"
+                    style={{ color: "#2F6E62" }}
+                  >
+                    {metricValue(key)}
+                  </div>
+
+                  <div
+                    className="text-[11px] font-medium mt-1 leading-tight"
+                    style={{ color: "#5E574D" }}
+                  >
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 
       <p
-        className="text-xs text-center mt-5"
+        className="text-xs text-center mt-5 leading-relaxed"
         style={{ color: "#6B6459" }}
       >
-        Dashboard counts and case lists are loaded from the live REunited database. Normal missing-pet cases do not require staff approval.
+        Analytics are calculated from the live REunited database. Rejected
+        sightings remain stored for historical analysis but can be hidden from
+        the pet owner's operational sighting view.
       </p>
     </div>
   );
