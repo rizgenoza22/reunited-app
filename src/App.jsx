@@ -3054,6 +3054,10 @@ const selectedPet = [
             ownerName: "You",
             heroName: reunion?.hero_name || hero?.reporterName || null,
             message: reunionStory.trim(),
+            photoUrl:
+              pet.primaryPhotoUrl ||
+              (Array.isArray(pet.photos) ? pet.photos[0] : null) ||
+              null,
             photoColor: pet.color || "#E2572B",
             timeLabel: "just now",
             lostDateLabel: existingDates?.lostAt
@@ -6579,10 +6583,18 @@ function ReunionStoryScreen({ story, onBack }) {
       <div className="text-center pt-4">
         {isPublicStory ? (
           <div
-            className="w-full h-40 rounded-lg mb-4 flex items-center justify-center"
-            style={{ background: story.photoColor }}
+            className="w-full h-40 rounded-lg mb-4 flex items-center justify-center overflow-hidden"
+            style={{ background: story.photoColor || "#2F6E62" }}
           >
-            <Heart size={40} color="#F2E9D8" fill="#F2E9D8" />
+            {story.photoUrl ? (
+              <img
+                src={story.photoUrl}
+                alt={`${story.petName || "Pet"} reunion`}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Heart size={40} color="#F2E9D8" fill="#F2E9D8" />
+            )}
           </div>
         ) : (
           <div className="flex justify-center mb-4">
