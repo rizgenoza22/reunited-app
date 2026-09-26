@@ -12,3 +12,26 @@ select,
 textarea {
   font-size: 16px !important;
 }
+/* Global button press feedback */
+button:not(:disabled) {
+  transition:
+    transform 100ms ease,
+    opacity 100ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px) scale(0.97);
+  opacity: 0.88;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled) {
+    transition: none;
+  }
+
+  button:not(:disabled):active {
+    transform: none;
+  }
+}
