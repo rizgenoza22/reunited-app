@@ -5463,7 +5463,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
       <div className="amr-panel rounded-lg p-4 mb-5">
         <StatRow emoji="🐾" label="MY PETS" value={myPetsCount} />
         <StatRow emoji="🚨" label="MY REPORTS" value={myReportsCount} />
-        <StatRow emoji="👀" label="SIGHTINGS" value={sightingsCount} />
+        <StatRow emoji="👀" label="MY SIGHTINGS" value={sightingsCount} />
         <StatRow emoji="🏆" label="HERO REUNIONS" value={heroReunionsCount} isLast />
       </div>
 
