@@ -8441,7 +8441,12 @@ function TrailScreen({
           </p>
         )}
 
-        {sorted.map((s) => {
+        {sorted
+          .filter(
+            (s) =>
+              String(s.ownerVerdict || "").toUpperCase() !== "NOT_MY_PET",
+          )
+          .map((s) => {
           const firstPhoto =
             s.photos?.[0] ||
             s.photoUrl ||
