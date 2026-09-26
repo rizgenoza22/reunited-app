@@ -1009,20 +1009,8 @@ const COMMUNITY_ALERTS = [
   },
 ];
 
-// Found-pet reports that didn't match any active missing-pet case -- a
-// community bulletin board. Seeded with one example so it isn't empty
-// before anyone in this session posts to it.
-const INITIAL_FOUND_PETS_BOARD = [
-  {
-    id: "found1",
-    species: "Dog",
-    primaryColor: "Black and white",
-    locationLabel: "Near the community park",
-    timeLabel: "3 hr ago",
-    finderName: "Riley P.",
-    photoColor: "#6E7F5C",
-  },
-];
+// Found-pet reports that didn't match any active missing-pet case.
+const INITIAL_FOUND_PETS_BOARD = [];
 
 const TIME_CHIPS = ["Just now", "15 minutes ago", "1 hour ago", "This morning"];
 const RADIUS_OPTIONS = [1, 3, 5];
