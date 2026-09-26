@@ -89,6 +89,9 @@ import {
   getCommunityPosts,
   createCommunityPost,
   toggleCommunityPostLike,
+  getFoundPets,
+  createFoundPet,
+  uploadFoundPetPhoto,
 } from "./api";
 // The app's icon mark -- the actual approved badge image (navy circle,
 // coral ring, cream heart), embedded as a data URI. Replaces both the
@@ -1791,6 +1794,98 @@ const [nearbyError, setNearbyError] = useState(null);
   const [shareAsStory, setShareAsStory] = useState(false);
   const [foundPetCapture, setFoundPetCapture] = useState(null); // { species, primaryColor, photoColor, locationLabel, captureLat, captureLng, gpsAccuracyMeters }
   const [foundPetsBoard, setFoundPetsBoard] = useState(INITIAL_FOUND_PETS_BOARD);
+
+  async function loadFoundPetsBoard() {
+    try {
+      const response = await getFoundPets();
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.found_pets)
+          ? response.found_pets
+          : Array.isArray(response?.items)
+            ? response.items
+            : [];
+
+      const mapped = rows.map((row) => {
+        const rawPhoto =
+          row.photo_url ||
+          row.file_url ||
+          row.thumbnail_url ||
+          row.primary_photo_url ||
+          row.photos?.[0]?.file_url ||
+          row.photos?.[0]?.url ||
+          null;
+
+        const petType = String(
+          row.pet_type ||
+          row.species ||
+          "PET",
+        ).toUpperCase();
+
+        const species =
+          petType === "DOG"
+            ? "Dog"
+            : petType === "CAT"
+              ? "Cat"
+              : "Other";
+
+        return {
+          id:
+            row.found_pet_id ??
+            row.id,
+
+          foundPetId:
+            row.found_pet_id ??
+            row.id,
+
+          species,
+
+          primaryColor:
+            row.primary_color ||
+            "Not noted",
+
+          comment:
+            row.description ||
+            "",
+
+          locationLabel:
+            row.location_text &&
+            !/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(
+              String(row.location_text),
+            )
+              ? row.location_text
+              : "Location provided privately",
+
+          timeLabel:
+            row.created_at
+              ? new Date(row.created_at).toLocaleString()
+              : "Recently",
+
+          finderName:
+            row.finder_name ||
+            row.reporter_name ||
+            "REunited member",
+
+          photoUrl: rawPhoto,
+
+          photos: rawPhoto
+            ? [rawPhoto]
+            : [],
+        };
+      });
+
+      setFoundPetsBoard(mapped);
+    } catch (error) {
+      console.error(
+        "Unable to load Found Pets Board:",
+        error,
+      );
+    }
+  }
+
+  useEffect(() => {
+    loadFoundPetsBoard();
+  }, []);
   const [messageThreadSubject, setMessageThreadSubject] = useState(null); // { id, title, subtitle, origin, reportId?, otherUserId?, isReal? }
   const [realThreadMessages, setRealThreadMessages] = useState([]);
   const [realThreadLoading, setRealThreadLoading] = useState(false);
@@ -2616,72 +2711,185 @@ const selectedPet = [
     setScreen("foundPet");
   }
 
-  function submitFoundPetCapture(capture) {
-    setFoundPetCapture(capture);
+  async function submitFoundPetCapture(capture) {
+    if (
+      !capture?.location ||
+      !Number.isFinite(Number(capture.location.lat)) ||
+      !Number.isFinite(Number(capture.location.lng))
+    ) {
+      throw new Error(
+        "Please capture your current location before checking for matches.",
+      );
+    }
+
+    const latitude = Number(capture.location.lat);
+    const longitude = Number(capture.location.lng);
+
+    // Use the exact coordinates supplied by the device only for the private
+    // backend nearby search. Do not manufacture a more precise position.
+    const reports = await getNearbyReports(
+      latitude,
+      longitude,
+      5,
+    );
+
+    const rows = Array.isArray(reports) ? reports : [];
+
+    const mappedCandidates = rows
+      .map(mapNearbyReport)
+      .filter((candidate) => {
+        const candidateSpecies = String(
+          candidate.species || "",
+        ).toLowerCase();
+
+        return (
+          candidateSpecies ===
+          String(capture.species || "").toLowerCase()
+        );
+      });
+
+    setFoundPetCapture({
+      ...capture,
+      nearbyCandidates: mappedCandidates,
+    });
+
     setScreen("foundPetMatches");
   }
 
-  // A confirmed match skips the scoring pipeline entirely -- the finder has
-  // physical custody of the pet and explicitly matched it to this case,
-  // which is stronger evidence than any photo-based sighting the pipeline
-  // was built to evaluate. It's recorded as CONFIRMED immediately, and the
-  // owner is alerted right away rather than waiting on staged scoring.
-  function confirmFoundPetMatch(petId) {
-    setSelectedPetId(petId);
-    const reporterName = MOCK_REPORTER_POOL[Math.floor(Math.random() * MOCK_REPORTER_POOL.length)];
-    const distanceLabel = `${(0.2 + Math.random() * 1.5).toFixed(1)} km away`;
-    const sighting = {
-      id: `s-${Date.now()}`,
-      reporterName,
-      distanceLabel,
-      timeLabel: "just now",
-      confidence: "CONFIRMED",
-      signals: ["Reporter has physical custody of this pet — matched directly to your missing-pet report"],
-      origin: "foundPet",
-      photos: foundPetCapture?.photos || [],
-      photoColor: foundPetCapture?.photos?.[0],
-      comment: foundPetCapture?.comment || "",
-    };
-    setSightingsByPet((prev) => ({
-      ...prev,
-      [petId]: [...(prev[petId] || []), sighting],
-    }));
-    setSightingsSubmittedCount((prev) => prev + 1);
-
-    const isOwnActivePet = pets.some((p) => p.id === petId) && activeCases[petId];
-    if (isOwnActivePet) {
-      const pet = pets.find((p) => p.id === petId);
-      setOwnerAlert({
-        petId,
-        petName: pet?.name,
-        species: pet?.species,
-        distanceLabel,
-        timeLabel: "just now",
-        origin: "foundPet",
-      });
+  async function confirmFoundPetMatch(candidate) {
+    if (!foundPetCapture) {
+      throw new Error("Found-pet report details are missing.");
     }
 
+    const reportId = Number(
+      candidate?.reportId ||
+        candidate?.report_id,
+    );
+
+    if (!Number.isFinite(reportId) || reportId <= 0) {
+      throw new Error(
+        "This missing-pet report cannot receive a sighting right now.",
+      );
+    }
+
+    const latitude = Number(foundPetCapture.location?.lat);
+    const longitude = Number(foundPetCapture.location?.lng);
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      throw new Error(
+        "The found-pet location is missing. Please capture it again.",
+      );
+    }
+
+    const descriptionParts = [
+      "Possible match reported through Found Pet.",
+      foundPetCapture.color
+        ? `Primary color: ${foundPetCapture.color}.`
+        : "",
+      foundPetCapture.comments || "",
+    ].filter(Boolean);
+
+    const created = await createSighting({
+      reportId,
+      latitude,
+      longitude,
+      sightedAt: new Date().toISOString(),
+      description: descriptionParts.join(" ").trim(),
+    });
+
+    const sightingId = Number(
+      created?.sighting_id ||
+        created?.id,
+    );
+
+    if (!Number.isFinite(sightingId) || sightingId <= 0) {
+      throw new Error(
+        "The sighting was created but its ID was not returned.",
+      );
+    }
+
+    for (const file of foundPetCapture.photos || []) {
+      await uploadSightingPhoto(sightingId, file);
+    }
+
+    const petId =
+      candidate?.id ??
+      candidate?.petId ??
+      candidate?.pet_id ??
+      null;
+
+    if (petId != null) {
+      setSelectedPetId(petId);
+    }
+
+    setSightingsSubmittedCount((current) => current + 1);
+
+    // The owner/backend verification flow decides whether this is actually
+    // their pet. The finder must not mark the sighting CONFIRMED themselves.
     setScreen("foundPetMatchConfirmed");
   }
 
-  function reportFoundPetNoMatch() {
-    setFoundPetsBoard((prev) => [
-      {
-        id: `found-${Date.now()}`,
-        species: foundPetCapture.species,
-        primaryColor: foundPetCapture.primaryColor || "Not noted",
-        comment: foundPetCapture.comment || "",
-        locationLabel: foundPetCapture.locationLabel,
-        timeLabel: "just now",
-        finderName: "You",
-        photos: foundPetCapture.photos || [],
-        photoColor: foundPetCapture.photos?.[0],
-      },
-      ...prev,
-    ]);
+  async function reportFoundPetNoMatch() {
+    if (!foundPetCapture) {
+      throw new Error("Found-pet report details are missing.");
+    }
+
+    const latitude = Number(foundPetCapture.location?.lat);
+    const longitude = Number(foundPetCapture.location?.lng);
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      throw new Error(
+        "The found-pet location is missing. Please capture it again.",
+      );
+    }
+
+    const descriptionParts = [
+      foundPetCapture.color
+        ? `Primary color: ${foundPetCapture.color}.`
+        : "",
+      foundPetCapture.comments || "",
+      !foundPetCapture.color && !foundPetCapture.comments
+        ? `${foundPetCapture.species || "Pet"} found pet`
+        : "",
+    ].filter(Boolean);
+
+    const created = await createFoundPet({
+      petType: foundPetCapture.species,
+      description: descriptionParts.join(" ").trim(),
+      foundAt: new Date().toISOString(),
+
+      // Exact coordinates remain in the protected backend fields.
+      // Do not put coordinate text into the public location label.
+      locationText: "Location provided privately",
+      latitude,
+      longitude,
+    });
+
+    const foundPetId = Number(
+      created?.found_pet_id ||
+        created?.id,
+    );
+
+    if (!Number.isFinite(foundPetId) || foundPetId <= 0) {
+      throw new Error(
+        "The found-pet report was created but its ID was not returned.",
+      );
+    }
+
+    for (const file of foundPetCapture.photos || []) {
+      await uploadFoundPetPhoto(foundPetId, file);
+    }
+
+    await loadFoundPetsBoard();
+
     setScreen("foundPetPosted");
   }
-
   function openReunionStory(storyId, origin) {
     setSelectedStoryId(storyId);
     setStoryOrigin(origin);
@@ -3981,12 +4189,13 @@ onRefreshNearby={loadNearbyAlerts}
         />
       )}
       {screen === "foundPet" && (
-        <FoundPetScreen onBack={() => setScreen("alerts")} onSubmit={submitFoundPetCapture} />
+        <FoundPetScreen
+            ensureLocationConsent={ensureLocationConsent} onBack={() => setScreen("alerts")} onSubmit={submitFoundPetCapture} />
       )}
       {screen === "foundPetMatches" && foundPetCapture && (
         <FoundPetMatchesScreen
           capture={foundPetCapture}
-          candidates={[...activePets, ...COMMUNITY_ALERTS].filter((p) => p.species === foundPetCapture.species)}
+          candidates={foundPetCapture.nearbyCandidates || []}
           onBack={() => setScreen("foundPet")}
           onConfirmMatch={confirmFoundPetMatch}
           onNoMatch={reportFoundPetNoMatch}
@@ -5308,12 +5517,29 @@ function AlertsScreen({
               <div key={f.id} className="amr-panel rounded-lg p-3.5">
                 <div className="flex items-center gap-3 mb-2">
                   <button
-                    onClick={() => (f.photos?.length > 0 || f.photoColor) && setEnlargedFoundPet(f)}
-                    className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: f.photoColor, cursor: f.photos?.length > 0 || f.photoColor ? "pointer" : "default" }}
+                    onClick={() =>
+                      (f.photoUrl || f.photos?.length > 0) &&
+                      setEnlargedFoundPet(f)
+                    }
+                    className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 overflow-hidden"
+                    style={{
+                      background: "#DED4BA",
+                      cursor:
+                        f.photoUrl || f.photos?.length > 0
+                          ? "pointer"
+                          : "default",
+                    }}
                     aria-label="View photo"
                   >
-                    <HeartMark size={20} color="#F2E9D8" />
+                    {f.photoUrl ? (
+                      <img
+                        src={f.photoUrl}
+                        alt={`Found ${f.species || "pet"}`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <HeartMark size={20} color="#F2E9D8" />
+                    )}
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold">{f.species} · {f.primaryColor}</div>
@@ -5343,7 +5569,11 @@ function AlertsScreen({
 
       {enlargedFoundPet && (
         <PhotoLightbox
-          photos={enlargedFoundPet.photos?.length > 0 ? enlargedFoundPet.photos : [enlargedFoundPet.photoColor]}
+          photos={
+            enlargedFoundPet.photos?.length > 0
+              ? enlargedFoundPet.photos
+              : [enlargedFoundPet.photoUrl].filter(Boolean)
+          }
           title={`${enlargedFoundPet.species} · ${enlargedFoundPet.primaryColor}`}
           subtitle={`${enlargedFoundPet.locationLabel} · ${enlargedFoundPet.timeLabel}`}
           onClose={() => setEnlargedFoundPet(null)}
@@ -9756,103 +9986,392 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
   );
 }
 
-function FoundPetScreen({ onBack, onSubmit }) {
-  const [photos, setPhotos] = useState([]); // up to 3 colors, standing in for real photo bytes
+function FoundPetScreen({
+  onBack,
+  onSubmit,
+  ensureLocationConsent,
+}) {
+  const [photos, setPhotos] = useState([]);
   const [species, setSpecies] = useState("Dog");
-  const [primaryColor, setPrimaryColor] = useState("");
-  const [comment, setComment] = useState("");
-  const [location, setLocation] = useState(null); // { lat, lng, label }
+  const [color, setColor] = useState("");
+  const [comments, setComments] = useState("");
+  const [location, setLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function addPhoto() {
-    if (photos.length >= MAX_SIGHTING_PHOTOS) return;
-    const usedColors = new Set(photos);
-    const available = POST_PHOTO_COLORS.filter((c) => !usedColors.has(c));
-    const pool = available.length > 0 ? available : POST_PHOTO_COLORS;
-    setPhotos((prev) => [...prev, pool[Math.floor(Math.random() * pool.length)]]);
+  const galleryInputRef = useRef(null);
+
+  const MAX_FOUND_PET_PHOTOS = 3;
+  const MAX_FOUND_PET_PHOTO_BYTES = 5 * 1024 * 1024;
+  const ALLOWED_FOUND_PET_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ]);
+
+  useEffect(() => {
+    return () => {
+      photos.forEach((item) => {
+        if (item?.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, [photos]);
+
+  function validateFoundPetFile(file) {
+    if (!file) {
+      return "Please choose a photo.";
+    }
+
+    if (!ALLOWED_FOUND_PET_TYPES.has(file.type)) {
+      return "Please use a JPG, PNG, or WEBP image.";
+    }
+
+    if (file.size > MAX_FOUND_PET_PHOTO_BYTES) {
+      return "Each photo must be 5 MB or smaller.";
+    }
+
+    return "";
   }
 
-  function removePhoto(index) {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-  }
+  function addFoundPetFile(file) {
+    if (!file) return;
 
-  function useCurrentLocation() {
-    const lat = 14.676 + (Math.random() - 0.5) * 0.01;
-    const lng = 121.044 + (Math.random() - 0.5) * 0.01;
-    setLocation({ lat, lng, label: `${lat.toFixed(4)}, ${lng.toFixed(4)}` });
-  }
+    setPhotoError("");
 
-  function submit() {
-    onSubmit({
-      species,
-      primaryColor: primaryColor.trim(),
-      comment: comment.trim(),
-      photos,
-      photoColor: photos[0], // kept for any code still reading a single photo
-      locationLabel: location.label,
-      captureLat: location.lat,
-      captureLng: location.lng,
-      gpsAccuracyMeters: Math.round(5 + Math.random() * 10),
+    const validationError = validateFoundPetFile(file);
+
+    if (validationError) {
+      setPhotoError(validationError);
+      return;
+    }
+
+    setPhotos((current) => {
+      if (current.length >= MAX_FOUND_PET_PHOTOS) {
+        return current;
+      }
+
+      return [
+        ...current,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        },
+      ];
     });
   }
 
-  const canSubmit = photos.length > 0 && !!location;
+  function removeFoundPetPhoto(photoId) {
+    setPhotos((current) => {
+      const target = current.find((item) => item.id === photoId);
+
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+
+      return current.filter((item) => item.id !== photoId);
+    });
+  }
+
+  async function takeFoundPetPhoto() {
+    if (photos.length >= MAX_FOUND_PET_PHOTOS) {
+      return;
+    }
+
+    setPhotoError("");
+
+    try {
+      const photo = await CapacitorCamera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        saveToGallery: false,
+        correctOrientation: true,
+      });
+
+      if (!photo?.webPath) {
+        throw new Error("Camera did not return an image.");
+      }
+
+      const response = await fetch(photo.webPath);
+      const blob = await response.blob();
+
+      const mimeType =
+        blob.type ||
+        (photo.format === "webp"
+          ? "image/webp"
+          : photo.format === "png"
+            ? "image/png"
+            : "image/jpeg");
+
+      const extension =
+        mimeType === "image/png"
+          ? "png"
+          : mimeType === "image/webp"
+            ? "webp"
+            : "jpg";
+
+      const file = new File(
+        [blob],
+        `found-pet-${Date.now()}.${extension}`,
+        { type: mimeType },
+      );
+
+      addFoundPetFile(file);
+    } catch (error) {
+      const message = String(error?.message || error || "");
+
+      if (
+        message.toLowerCase().includes("cancel") ||
+        message.toLowerCase().includes("user cancelled")
+      ) {
+        return;
+      }
+
+      console.error("Unable to take found-pet photo:", error);
+      setPhotoError(
+        "Unable to use the camera. Please check Camera access for REunited in iPhone Settings and try again.",
+      );
+    }
+  }
+
+  function chooseFoundPetGalleryFiles(event) {
+    const selected = Array.from(event.target.files || []);
+
+    for (const file of selected) {
+      if (photos.length >= MAX_FOUND_PET_PHOTOS) {
+        break;
+      }
+
+      addFoundPetFile(file);
+    }
+
+    event.target.value = "";
+  }
+
+  function useFoundPetCurrentLocation() {
+    const action = async () => {
+      if (!navigator.geolocation) {
+        setLocation(null);
+        setLocationStatus(
+          "Location is not supported on this device.",
+        );
+        return;
+      }
+
+      setLocationStatus("Getting your location...");
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const latitude = Number(position.coords.latitude);
+          const longitude = Number(position.coords.longitude);
+          const accuracy = Number(position.coords.accuracy);
+
+          if (
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude)
+          ) {
+            setLocation(null);
+            setLocationStatus(
+              "Your device returned an invalid location. Please try again.",
+            );
+            return;
+          }
+
+          setLocation({
+            lat: latitude,
+            lng: longitude,
+            accuracy: Number.isFinite(accuracy) ? accuracy : null,
+            capturedAt: Number(position.timestamp || Date.now()),
+          });
+
+          if (Number.isFinite(accuracy)) {
+            setLocationStatus(
+              `Location captured (about ±${Math.round(accuracy)} m).`,
+            );
+          } else {
+            setLocationStatus("Location captured.");
+          }
+        },
+        (error) => {
+          console.error("Found pet location error:", error);
+          setLocation(null);
+
+          if (error?.code === 1) {
+            setLocationStatus(
+              "Location permission was denied. Please allow location access for REunited and try again.",
+            );
+          } else if (error?.code === 2) {
+            setLocationStatus(
+              "Your current location is unavailable. Please try again.",
+            );
+          } else if (error?.code === 3) {
+            setLocationStatus(
+              "Getting your location timed out. Please try again.",
+            );
+          } else {
+            setLocationStatus(
+              "Unable to get your current location. Please try again.",
+            );
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        },
+      );
+    };
+
+    if (typeof ensureLocationConsent === "function") {
+      return ensureLocationConsent(action);
+    }
+
+    return action();
+  }
+
+  async function submitFoundPet() {
+    if (
+      photos.length === 0 ||
+      !location ||
+      submitting
+    ) {
+      return;
+    }
+
+    setSubmitting(true);
+    setPhotoError("");
+
+    try {
+      await onSubmit({
+        photos: photos.map((item) => item.file),
+        species,
+        color: color.trim(),
+        comments: comments.trim(),
+        location,
+      });
+    } catch (error) {
+      console.error("Unable to continue found-pet report:", error);
+      setPhotoError(
+        error?.message ||
+          "Unable to continue the found-pet report. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const canSubmit =
+    photos.length > 0 &&
+    Boolean(location) &&
+    !submitting;
 
   return (
     <div>
       <ScreenHeader title="Report a Found Pet" onBack={onBack} />
+
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Take a photo and confirm where you found them — we'll check this
         against active missing-pet reports nearby.
       </p>
 
-      <div className="font-semibold text-sm mb-1.5">
-        Photos ({photos.length}/{MAX_SIGHTING_PHOTOS})
+      <div className="font-semibold text-sm mb-1">
+        Photos ({photos.length}/3)
       </div>
-      <p className="text-xs mb-2" style={{ color: "#6B6459" }}>
-        Up to {MAX_SIGHTING_PHOTOS} photos — different angles help confirm identity.
-      </p>
-      <div className="flex gap-2 mb-4">
-        {photos.map((color, i) => (
+
+      <div className="text-xs mb-2" style={{ color: "#6B6459" }}>
+        Up to 3 photos — different angles help confirm identity.
+      </div>
+
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="hidden"
+        onChange={chooseFoundPetGalleryFiles}
+      />
+
+      <div className="flex gap-2 flex-wrap mb-4">
+        {photos.map((photo, index) => (
           <div
-            key={i}
-            className="amr-fade-in relative w-20 h-20 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: color }}
+            key={photo.id}
+            className="relative w-20 h-20 rounded-md overflow-hidden"
+            style={{ background: "#D9CFB6" }}
           >
-            <HeartMark size={26} color="#F2E9D8" />
+            <img
+              src={photo.previewUrl}
+              alt={`Found pet photo ${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+
             <button
-              onClick={() => removePhoto(i)}
-              aria-label="Remove photo"
-              className="absolute -top-3 -right-3 w-11 h-11 rounded-full flex items-center justify-center"
+              type="button"
+              onClick={() => removeFoundPetPhoto(photo.id)}
+              className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs"
+              style={{
+                background: "#20291F",
+                color: "#F2E9D8",
+              }}
+              aria-label={`Remove photo ${index + 1}`}
             >
-              {/* Visible badge stays small (matches the design); the button
-                  itself is the full 44px minimum tap target (iOS HIG / Android
-                  Material both require this) -- an invisible larger hit area
-                  around a small visual dot, same technique iOS's own delete
-                  badges use. */}
-              <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: "#20291F", color: "#F2E9D8" }}
-              >
-                ×
-              </span>
+              ×
             </button>
           </div>
         ))}
-        {photos.length < MAX_SIGHTING_PHOTOS && (
-          <button
-            onClick={addPhoto}
-            className="amr-map w-20 h-20 rounded-lg flex items-center justify-center shrink-0"
-            style={{ color: "#6B6459" }}
-          >
-            <Camera size={20} />
-          </button>
+
+        {photos.length < MAX_FOUND_PET_PHOTOS && (
+          <>
+            <button
+              type="button"
+              onClick={takeFoundPetPhoto}
+              className="w-20 h-20 rounded-md flex flex-col items-center justify-center gap-1"
+              style={{
+                background: "#DED4BA",
+                color: "#6B6459",
+              }}
+            >
+              <Camera size={20} />
+              <span className="text-[10px] font-semibold">Camera</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="w-20 h-20 rounded-md flex flex-col items-center justify-center gap-1"
+              style={{
+                background: "#DED4BA",
+                color: "#6B6459",
+              }}
+            >
+              <ImageIcon size={20} />
+              <span className="text-[10px] font-semibold">Gallery</span>
+            </button>
+          </>
         )}
       </div>
 
-      <div className="font-semibold text-sm mb-1.5">Species</div>
+      {photoError && (
+        <div
+          className="rounded-md px-3 py-2 text-sm mb-4"
+          style={{
+            background: "#FEE4E2",
+            color: "#B42318",
+          }}
+        >
+          {photoError}
+        </div>
+      )}
+
+      <div className="font-semibold text-sm mb-2">Species</div>
+
       <select
         value={species}
-        onChange={(e) => setSpecies(e.target.value)}
+        onChange={(event) => setSpecies(event.target.value)}
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
       >
         <option value="Dog">Dog</option>
@@ -9860,91 +10379,233 @@ function FoundPetScreen({ onBack, onSubmit }) {
         <option value="Other">Other</option>
       </select>
 
-      <div className="font-semibold text-sm mb-1.5">Primary color (optional)</div>
+      <div className="font-semibold text-sm mb-2">
+        Primary color (optional)
+      </div>
+
       <input
-        id="found-pet-color"
-        name="foundPetColor"
-        type="text"
-        value={primaryColor}
-        onChange={(e) => setPrimaryColor(e.target.value)}
+        value={color}
+        onChange={(event) => setColor(event.target.value)}
         placeholder="e.g. Black and white"
         className="amr-chip w-full px-3 py-2.5 rounded-md text-sm mb-4"
       />
 
-      <div className="font-semibold text-sm mb-1.5">Comments (optional)</div>
-      <textarea
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Behavior, collar or tags, anything that might help identify them…"
-        className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-4"
-        rows={3}
-      />
-
-      <div className="flex items-center justify-between mb-5">
-        <button onClick={useCurrentLocation} className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#2F6E62" }}>
-          <Navigation size={14} />
-          Use current location
-        </button>
-        {location && <span className="text-xs" style={{ color: "#6B6459" }}>{location.label}</span>}
+      <div className="font-semibold text-sm mb-2">
+        Comments (optional)
       </div>
 
-      <button disabled={!canSubmit} onClick={submit} className="amr-btn-primary w-full py-3 rounded-md">
-        Check for Matches
+      <textarea
+        value={comments}
+        onChange={(event) =>
+          setComments(event.target.value.slice(0, 1000))
+        }
+        placeholder="Behavior, collar or tags, anything that might help identify them..."
+        className="amr-chip w-full px-3 py-2 rounded-md text-sm mb-4"
+        rows={3}
+        maxLength={1000}
+      />
+
+      <button
+        type="button"
+        onClick={useFoundPetCurrentLocation}
+        className="flex items-center gap-2 text-sm font-semibold mb-2"
+        style={{ color: "#147A78" }}
+      >
+        <Navigation size={16} />
+        {location ? "Update current location" : "Use current location"}
       </button>
-    </div>
-  );
-}
 
-function FoundPetMatchesScreen({ capture, candidates, onBack, onConfirmMatch, onNoMatch }) {
-  return (
-    <div>
-      <ScreenHeader title="Possible Matches" onBack={onBack} />
-      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
-        Based on species{capture.primaryColor ? " and description" : ""}, here's what's currently
-        reported missing nearby. This is a simple filter, not a photo match —
-        use your judgment.
-      </p>
-
-      {candidates.length === 0 ? (
-        <p className="text-sm italic mb-5" style={{ color: "#6B6459" }}>
-          No active {capture.species.toLowerCase()} reports nearby right now.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3 mb-5">
-          {candidates.map((pet) => (
-            <div key={pet.id} className="amr-panel rounded-lg p-3.5">
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold shrink-0"
-                  style={{ background: pet.color }}
-                >
-                  {pet.name[0]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">{pet.name}</div>
-                  <div className="text-xs" style={{ color: "#6B6459" }}>
-                    {pet.breed} · {pet.primaryColor || "color not noted"}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => onConfirmMatch(pet.id)}
-                className="amr-btn-teal w-full py-2 rounded-md text-sm"
-              >
-                This looks like {pet.name}
-              </button>
-            </div>
-          ))}
+      {locationStatus && (
+        <div
+          className="text-xs mb-5"
+          style={{ color: location ? "#147A78" : "#6B6459" }}
+        >
+          {locationStatus}
         </div>
       )}
 
-      <button onClick={onNoMatch} className="amr-btn-secondary w-full py-2.5 rounded-md text-sm">
-        None of these match — post to Found Pets Board
+      <button
+        type="button"
+        disabled={!canSubmit}
+        onClick={submitFoundPet}
+        className="amr-btn-primary w-full py-3 rounded-md"
+      >
+        {submitting ? "Checking..." : "Check for Matches"}
       </button>
     </div>
   );
 }
+function FoundPetMatchesScreen({
+  capture,
+  candidates,
+  onBack,
+  onConfirmMatch,
+  onNoMatch,
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
+  async function confirm(candidate) {
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      await onConfirmMatch(candidate);
+    } catch (err) {
+      console.error("Found-pet match submission failed:", err);
+      setError(
+        err?.message ||
+          "Unable to submit this possible match. Please try again.",
+      );
+      setSubmitting(false);
+    }
+  }
+
+  async function noMatch() {
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      await onNoMatch();
+    } catch (err) {
+      console.error("Found-pet board submission failed:", err);
+      setError(
+        err?.message ||
+          "Unable to post this found pet. Please try again.",
+      );
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div>
+      <ScreenHeader
+        title="Possible Matches"
+        onBack={submitting ? undefined : onBack}
+      />
+
+      <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
+        These are active missing-pet reports returned near the location
+        you provided. This is not automatic photo recognition — compare
+        the pet carefully before reporting a possible match.
+      </p>
+
+      {error && (
+        <div
+          className="rounded-md px-3 py-2 text-sm mb-4"
+          style={{
+            background: "#FEE4E2",
+            color: "#B42318",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {candidates.length === 0 ? (
+        <p
+          className="text-sm italic mb-5"
+          style={{ color: "#6B6459" }}
+        >
+          No active {String(capture.species || "pet").toLowerCase()} reports
+          were returned nearby right now.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3 mb-5">
+          {candidates.map((pet) => {
+            const imageUrl =
+              pet.photoUrl ||
+              pet.primaryPhotoUrl ||
+              pet.photos?.[0]?.file_url ||
+              pet.photos?.[0]?.url ||
+              null;
+
+            return (
+              <div
+                key={
+                  pet.reportId ||
+                  pet.report_id ||
+                  pet.id
+                }
+                className="amr-panel rounded-lg p-3.5"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={pet.name || "Missing pet"}
+                      className="w-12 h-12 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center font-semibold shrink-0"
+                      style={{
+                        background: "#DED4BA",
+                        color: "#20291F",
+                      }}
+                    >
+                      {(pet.name || "?")[0]}
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm">
+                      {pet.name || "Missing pet"}
+                    </div>
+
+                    <div
+                      className="text-xs"
+                      style={{ color: "#6B6459" }}
+                    >
+                      {[pet.breed, pet.primaryColor]
+                        .filter(Boolean)
+                        .join(" · ") || "Details available in report"}
+                    </div>
+
+                    {pet.distanceLabel && (
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: "#147A78" }}
+                      >
+                        {pet.distanceLabel}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => confirm(pet)}
+                  className="amr-btn-teal w-full py-2 rounded-md text-sm"
+                >
+                  {submitting
+                    ? "Submitting..."
+                    : `This may be ${pet.name || "the missing pet"}`}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        type="button"
+        disabled={submitting}
+        onClick={noMatch}
+        className="amr-btn-secondary w-full py-2.5 rounded-md text-sm"
+      >
+        {submitting
+          ? "Posting..."
+          : "None of these match — post to Found Pets Board"}
+      </button>
+    </div>
+  );
+}
 function FoundPetPostedScreen({ onDone }) {
   return (
     <div className="text-center pt-6">
@@ -9975,11 +10636,10 @@ function FoundPetMatchConfirmedScreen({ pet, onDone }) {
           <HeartMark size={32} color="#F2E9D8" />
         </div>
       </div>
-      <div className="amr-display text-4xl mb-1">MATCH CONFIRMED</div>
+      <div className="amr-display text-4xl mb-1">SIGHTING SENT</div>
       <p className="text-sm mb-6" style={{ color: "#6B6459" }}>
-        {pet.name}'s owner has been notified that you have them. This is
-        marked as confirmed, not just a sighting — arrange a handoff through
-        messaging when you're ready.
+        Your possible match has been sent to the missing-pet report. The
+        owner can review the sighting and decide whether this is their pet.
       </p>
       <button onClick={onDone} className="amr-btn-teal w-full py-3 rounded-md">
         Continue

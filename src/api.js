@@ -910,3 +910,103 @@ export async function toggleCommunityPostLike(postId) {
 
   return handleResponse(response);
 }
+
+
+export async function getFoundPets() {
+  const response = await fetch(
+    `${API_BASE_URL}/found-pets`,
+    {
+      method: "GET",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function getMyFoundPets() {
+  const response = await fetch(
+    `${API_BASE_URL}/found-pets/mine`,
+    {
+      method: "GET",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function createFoundPet({
+  petType,
+  description,
+  foundAt,
+  locationText,
+  latitude,
+  longitude,
+}) {
+  const response = await fetch(
+    `${API_BASE_URL}/found-pets`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        pet_type: String(petType || "OTHER").toUpperCase(),
+        description,
+        found_at: foundAt,
+        location_text: locationText || undefined,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+      }),
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function uploadFoundPetPhoto(
+  foundPetId,
+  file,
+) {
+  if (!file) {
+    throw new Error("Choose a photo to upload.");
+  }
+
+  const formData = new FormData();
+
+  // Backend uses FileInterceptor("file").
+  formData.append("file", file);
+
+  const response = await fetch(
+    `${API_BASE_URL}/found-pets/${Number(foundPetId)}/photos`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+      },
+      body: formData,
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function markFoundPetReunited(foundPetId) {
+  const response = await fetch(
+    `${API_BASE_URL}/found-pets/${Number(foundPetId)}/reunited`,
+    {
+      method: "PATCH",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
