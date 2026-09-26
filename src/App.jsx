@@ -1063,7 +1063,7 @@ const CONFIDENCE_STYLE = {
   // Ink background makes it visually distinct from the LOW/MEDIUM/HIGH
   // teal family -- this isn't "very high confidence," it's a different
   // kind of claim (custody, not just visual ID).
-  CONFIRMED: { bg: "#20291F", fg: "#F2E9D8", label: "ðŸ¾ Found & Confirmed" },
+  CONFIRMED: { bg: "#20291F", fg: "#F2E9D8", label: "🐾 Found & Confirmed" },
 };
 
 const PIPELINE_STAGES = [
@@ -2218,13 +2218,13 @@ const selectedPet = [
 
       if (accuracy > 200) {
         setApiError(
-          `GPS accuracy is only about Â±${Math.round(
+          `GPS accuracy is only about ±${Math.round(
             accuracy,
           )} m. Retry GPS or move the pin manually before continuing.`,
         );
       } else if (accuracy > 100) {
         setApiError(
-          `GPS accuracy is about Â±${Math.round(
+          `GPS accuracy is about ±${Math.round(
             accuracy,
           )} m. Please check the pin carefully before continuing.`,
         );
@@ -4182,7 +4182,7 @@ onRefreshNearby={loadNearbyAlerts}
             openMessageThread({
               id: f.id,
               title: f.finderName,
-              subtitle: `About the pet they found â€” ${f.species} Â· ${f.locationLabel}`,
+              subtitle: `About the pet they found — ${f.species} · ${f.locationLabel}`,
               origin: "alerts",
             })
           }
@@ -4454,7 +4454,7 @@ onRefreshNearby={loadNearbyAlerts}
             openMessageThread({
               id: s.id,
               title: s.reporterName,
-              subtitle: `About their sighting ${s.distanceLabel} Â· ${s.timeLabel}`,
+              subtitle: `About their sighting ${s.distanceLabel} · ${s.timeLabel}`,
               origin: "trail",
               reportId: reportId ? Number(reportId) : null,
               otherUserId: s.reporterId ? Number(s.reporterId) : null,
@@ -4624,10 +4624,10 @@ function OwnerAlertBanner({ alert, onDismiss, onViewSighting }) {
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="font-semibold text-sm">
-            {isFoundConfirmed ? `ðŸ¾ ${alert.petName} Has Been Found!` : `ðŸ‘€ Possible Sighting of ${alert.petName}`}
+            {isFoundConfirmed ? `🐾 ${alert.petName} Has Been Found!` : `👀 Possible Sighting of ${alert.petName}`}
           </div>
           <button onClick={onDismiss} aria-label="Dismiss" className="text-lg leading-none" style={{ color: "#6B6459" }}>
-            Ã—
+            ×
           </button>
         </div>
         <p className="text-sm mb-3" style={{ color: "#6B6459" }}>
@@ -4636,10 +4636,10 @@ function OwnerAlertBanner({ alert, onDismiss, onViewSighting }) {
             : `A community member reported seeing a ${(alert.species || "pet").toLowerCase()} matching ${alert.petName} ${alert.distanceLabel} from the last-known area.`}
         </p>
         <div className="text-xs space-y-1 mb-3" style={{ color: "#6B6459" }}>
-          <div>ðŸ“· Photo submitted</div>
-          <div>ðŸ“ Location captured</div>
-          <div>ðŸ• {alert.timeLabel}</div>
-          {isFoundConfirmed && <div>ðŸ¾ Physical custody confirmed</div>}
+          <div>📷 Photo submitted</div>
+          <div>📍 Location captured</div>
+          <div>🕐 {alert.timeLabel}</div>
+          {isFoundConfirmed && <div>🐾 Physical custody confirmed</div>}
         </div>
         <button onClick={onViewSighting} className="amr-btn-primary w-full py-2 rounded-md text-sm">
           {isFoundConfirmed ? "View & Message Them" : "View Sighting"}
@@ -4791,7 +4791,7 @@ function HomeScreen({ pets, activeCases, reunitedCases, sightingsByPet, onReport
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold">{pet.name}</div>
                   <div className="text-xs" style={{ color: "#6B6459" }}>
-                    {pet.breed} Â· {pet.species}
+                    {pet.breed} · {pet.species}
                   </div>
                 </div>
                 {isActive && (
@@ -4816,7 +4816,7 @@ function HomeScreen({ pets, activeCases, reunitedCases, sightingsByPet, onReport
               {isActive ? (
                 <div className="mt-3 flex flex-col gap-2">
                   <div className="text-xs" style={{ color: "#6B6459" }}>
-                    ðŸ‘€ {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
+                    👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
                   </div>
                   <button
                     onClick={(e) => {
@@ -5057,7 +5057,7 @@ function AddPetScreen({ onBack, onSave }) {
                   color: "#F2E9D8",
                 }}
               >
-                Ã—
+                ×
               </span>
             </button>
           </div>
@@ -5135,7 +5135,7 @@ function AddPetScreen({ onBack, onSave }) {
       <p className="text-xs mb-4" style={{ color: "#6B6459" }}>
         {birthday
           ? `Age: ${calculateAge(birthday)}`
-          : "We'll calculate their age from this â€” an exact date isn't required, an estimate is fine."}
+          : "We'll calculate their age from this — an exact date isn't required, an estimate is fine."}
       </p>
 
       <div className="font-semibold text-sm mb-1.5">Primary color</div>
@@ -5194,7 +5194,7 @@ function AddPetScreen({ onBack, onSave }) {
             type="password"
             value={microchipNumber}
             onChange={(e) => setMicrochipNumber(e.target.value)}
-            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+            placeholder="•••••••••••"
             className="amr-chip w-full px-3 py-2.5 rounded-md text-sm"
           />
         </div>
@@ -5235,8 +5235,8 @@ async function shareMissingPetAlert(pet) {
   const when = pet?.lastSeenLabel || "recently";
 
   const shareText =
-    `ðŸš¨ MISSING PET â€” ${petName}\n` +
-    `Last seen: ${location} Â· ${when}\n\n` +
+    `🚨 MISSING PET — ${petName}\n` +
+    `Last seen: ${location} · ${when}\n\n` +
     `Please keep an eye out. If you see ${petName}, report the sighting through REunited.\n\n` +
     `For privacy and safety, the owner's identity and exact GPS location are not included.`;
 
@@ -5293,7 +5293,7 @@ function AlertsScreen({
     className="text-sm mb-4"
     style={{ color: "#6B6459" }}
   >
-    ðŸ“ Finding missing pets near you...
+    📍 Finding missing pets near you...
   </div>
 )}
 
@@ -5354,7 +5354,7 @@ function AlertsScreen({
 >
   {pet.species}
   {pet.lastLocationText
-    ? ` Â· ${pet.lastLocationText}`
+    ? ` · ${pet.lastLocationText}`
     : ""}
 </div>
                     </div>
@@ -5364,7 +5364,7 @@ function AlertsScreen({
                     </div>
                   </div>
                   <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
-                    ðŸ‘€ {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
+                    👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); onOpenTrail(pet.id); }}
@@ -5424,11 +5424,11 @@ function AlertsScreen({
                       </div>
 
                       <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
-                        {pet.breed} Â· {pet.species}
+                        {pet.breed} · {pet.species}
                       </div>
 
                       <div className="text-xs mt-2" style={{ color: "#6B6459" }}>
-                        ðŸ“ {pet.lastLocationText &&
+                        📍 {pet.lastLocationText &&
                         !/^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/.test(
                           String(pet.lastLocationText),
                         )
@@ -5437,11 +5437,11 @@ function AlertsScreen({
                       </div>
 
                       <div className="text-xs mt-1" style={{ color: "#6B6459" }}>
-                        ðŸ• Last seen {pet.lastSeenLabel || "recently"}
+                        🕐 Last seen {pet.lastSeenLabel || "recently"}
                       </div>
 
                       <div className="text-xs mt-1 font-semibold" style={{ color: "#2F6E62" }}>
-                        ðŸ“¡ {pet.distanceLabel || "Nearby alert"}
+                        📡 {pet.distanceLabel || "Nearby alert"}
                       </div>
                     </div>
                   </div>
@@ -5456,7 +5456,7 @@ function AlertsScreen({
                   )}
 
                   <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
-                    ðŸ‘€ {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
+                    👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -5542,15 +5542,15 @@ function AlertsScreen({
                     )}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold">{f.species} Â· {f.primaryColor}</div>
+                    <div className="text-sm font-semibold">{f.species} · {f.primaryColor}</div>
                     <div className="text-xs" style={{ color: "#6B6459" }}>
-                      {f.locationLabel} Â· {f.timeLabel} Â· found by {f.finderName}
+                      {f.locationLabel} · {f.timeLabel} · found by {f.finderName}
                     </div>
                   </div>
                 </div>
                 {f.comment && (
                   <div className="text-xs p-2.5 rounded-md mb-3" style={{ background: "#EDE3CD" }}>
-                    <span className="font-semibold" style={{ color: "#20291F" }}>ðŸ’¬ {f.finderName}: </span>
+                    <span className="font-semibold" style={{ color: "#20291F" }}>💬 {f.finderName}: </span>
                     <span style={{ color: "#6B6459" }}>"{f.comment}"</span>
                   </div>
                 )}
@@ -5574,8 +5574,8 @@ function AlertsScreen({
               ? enlargedFoundPet.photos
               : [enlargedFoundPet.photoUrl].filter(Boolean)
           }
-          title={`${enlargedFoundPet.species} Â· ${enlargedFoundPet.primaryColor}`}
-          subtitle={`${enlargedFoundPet.locationLabel} Â· ${enlargedFoundPet.timeLabel}`}
+          title={`${enlargedFoundPet.species} · ${enlargedFoundPet.primaryColor}`}
+          subtitle={`${enlargedFoundPet.locationLabel} · ${enlargedFoundPet.timeLabel}`}
           onClose={() => setEnlargedFoundPet(null)}
         />
       )}
@@ -5614,7 +5614,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm">Founding Member #{signupRank}</div>
-              <div className="text-xs" style={{ color: "#6B6459" }}>One of the first 100 â€” tap to re-read Amari's message</div>
+              <div className="text-xs" style={{ color: "#6B6459" }}>One of the first 100 — tap to re-read Amari's message</div>
             </div>
           </button>
           <button
@@ -5685,7 +5685,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
       ) : (
         <div className="amr-panel rounded-lg p-4 mb-5">
           <p className="text-sm mb-2" style={{ color: "#6B6459" }}>
-            No emergency contact set â€” useful if a helper needs to reach
+            No emergency contact set — useful if a helper needs to reach
             someone while you're unavailable during an active search.
           </p>
           <button onClick={onEditProfile} className="text-sm font-semibold" style={{ color: "#2F6E62" }}>
@@ -5695,15 +5695,15 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
       )}
 
       <div className="amr-panel rounded-lg p-4 mb-5">
-        <StatRow emoji="ðŸ¾" label="MY PETS" value={myPetsCount} />
-        <StatRow emoji="ðŸš¨" label="MY REPORTS" value={myReportsCount} />
-        <StatRow emoji="ðŸ‘€" label="MY SIGHTINGS" value={sightingsCount} />
-        <StatRow emoji="ðŸ†" label="HERO REUNIONS" value={heroReunionsCount} isLast />
+        <StatRow emoji="🐾" label="MY PETS" value={myPetsCount} />
+        <StatRow emoji="🚨" label="MY REPORTS" value={myReportsCount} />
+        <StatRow emoji="👀" label="MY SIGHTINGS" value={sightingsCount} />
+        <StatRow emoji="🏆" label="HERO REUNIONS" value={heroReunionsCount} isLast />
       </div>
 
       {heroRecognitionsLoading ? (
         <div className="amr-panel rounded-lg p-4 mb-5">
-          <div className="font-semibold text-sm mb-1">ðŸ† HERO RECOGNITION</div>
+          <div className="font-semibold text-sm mb-1">🏆 HERO RECOGNITION</div>
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
             Loading Hero Badge...
           </p>
@@ -5718,7 +5718,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
               <Award size={24} />
             </div>
             <div>
-              <div className="font-semibold text-sm">ðŸ† REunited Hero Badge</div>
+              <div className="font-semibold text-sm">🏆 REunited Hero Badge</div>
               <p className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
                 You helped reunite {heroReunionsCount} pet{heroReunionsCount === 1 ? "" : "s"} with their family.
               </p>
@@ -5737,7 +5737,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
               {recognition.ownerName && (
                 <div className="text-xs mb-2" style={{ color: "#6B6459" }}>
                   Recognition from {recognition.ownerName}
-                  {recognition.timeLabel ? ` Â· ${recognition.timeLabel}` : ""}
+                  {recognition.timeLabel ? ` · ${recognition.timeLabel}` : ""}
                 </div>
               )}
               <p className="text-xs" style={{ color: "#6B6459" }}>
@@ -5749,7 +5749,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
       ) : null}
 
       <div className="amr-panel rounded-lg p-4 mb-5">
-        <div className="font-semibold text-sm mb-3">ðŸ’Œ THANK-YOU MESSAGES</div>
+        <div className="font-semibold text-sm mb-3">💌 THANK-YOU MESSAGES</div>
         {heroRecognitionsLoading ? (
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
             Loading Hero recognitions...
@@ -5772,7 +5772,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
                     className="text-sm font-semibold flex items-center gap-1.5"
                     style={{ color: "#2F6E62" }}
                   >
-                    â–¶ View Reunion Story
+                    ▶ View Reunion Story
                   </button>
                 )}
               </div>
@@ -5785,7 +5785,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
         onClick={onOpenSettings}
         className="amr-panel rounded-lg p-4 w-full text-left flex items-center justify-between"
       >
-        <span className="font-semibold text-sm">âš™ï¸ Settings</span>
+        <span className="font-semibold text-sm">⚙️ Settings</span>
         <ChevronRight size={18} color="#6B6459" />
       </button>
     </div>
@@ -5833,7 +5833,7 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
           style={{ borderBottom: "1px solid #CBBFA0" }}
         >
           <div>
-            <div className="text-sm font-medium">ðŸ”’ Privacy Policy</div>
+            <div className="text-sm font-medium">🔒 Privacy Policy</div>
             <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
               Learn how REunited collects, uses, stores, and protects your data.
             </div>
@@ -5844,7 +5844,7 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
           style={{ borderBottom: "1px solid #CBBFA0" }}
         >
           <div>
-            <div className="text-sm font-medium">ðŸ“„ Terms & Community Guidelines</div>
+            <div className="text-sm font-medium">📄 Terms & Community Guidelines</div>
             <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
               Understand the rules for using REunited safely and responsibly.
             </div>
@@ -5853,7 +5853,7 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
         </button>
         <button onClick={onContactSupport} className="w-full text-left flex items-center justify-between px-4 py-3">
           <div>
-            <div className="text-sm font-medium">âœ‰ï¸ Contact & Support</div>
+            <div className="text-sm font-medium">✉️ Contact & Support</div>
             <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
               {SUPPORT_EMAIL}
             </div>
@@ -5918,13 +5918,13 @@ function PrivacyPolicyScreen({ onBack, onContactSupport }) {
       <PolicySection title="HOW WE USE YOUR INFORMATION">
         <p style={{ color: "#6B6459" }}>We use information as needed to:</p>
         <ul className="space-y-1" style={{ color: "#6B6459" }}>
-          <li>Â· Operate and secure your REunited account</li>
-          <li>Â· Help locate missing pets and process sightings</li>
-          <li>Â· Send relevant nearby and account notifications</li>
-          <li>Â· Enable communication related to recovery cases</li>
-          <li>Â· Improve trust and safety and prevent fraud or abuse</li>
-          <li>Â· Send verification and password-reset emails</li>
-          <li>Â· Provide customer and privacy support</li>
+          <li>· Operate and secure your REunited account</li>
+          <li>· Help locate missing pets and process sightings</li>
+          <li>· Send relevant nearby and account notifications</li>
+          <li>· Enable communication related to recovery cases</li>
+          <li>· Improve trust and safety and prevent fraud or abuse</li>
+          <li>· Send verification and password-reset emails</li>
+          <li>· Provide customer and privacy support</li>
         </ul>
       </PolicySection>
 
@@ -5967,7 +5967,7 @@ function PrivacyPolicyScreen({ onBack, onContactSupport }) {
           We retain information while your account is active and as needed to
           provide REunited, maintain safety and recovery records, resolve abuse
           reports, or meet applicable legal obligations. You can initiate account
-          deletion in <span className="font-semibold">Settings â†’ Delete My Account</span>.
+          deletion in <span className="font-semibold">Settings → Delete My Account</span>.
           Deletion permanently removes your personal profile and contact
           information, private pet identifiers and pet photos, notifications,
           message text you sent, sign-in access, and other account-linked private
@@ -5998,7 +5998,7 @@ function TermsScreen({ onBack, onUnderstand }) {
     <div>
       <ScreenHeader title="Terms & Guidelines" onBack={onBack} />
 
-      <div className="amr-display text-2xl leading-none mb-4">HELP BRING THEM HOME â€” RESPONSIBLY</div>
+      <div className="amr-display text-2xl leading-none mb-4">HELP BRING THEM HOME — RESPONSIBLY</div>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         REunited exists to help people and communities reunite missing pets
         with their families. By using REunited, you agree to use the
@@ -6016,11 +6016,11 @@ function TermsScreen({ onBack, onUnderstand }) {
       <PolicySection title="RESPECT OTHER USERS">
         <p style={{ color: "#6B6459" }}>Do not:</p>
         <ul className="space-y-1" style={{ color: "#6B6459" }}>
-          <li>Â· Harass or threaten another person</li>
-          <li>Â· Post hateful or abusive content</li>
-          <li>Â· Impersonate another person</li>
-          <li>Â· Spam users or cases</li>
-          <li>Â· Share another person's private information without permission</li>
+          <li>· Harass or threaten another person</li>
+          <li>· Post hateful or abusive content</li>
+          <li>· Impersonate another person</li>
+          <li>· Spam users or cases</li>
+          <li>· Share another person's private information without permission</li>
         </ul>
       </PolicySection>
 
@@ -6240,7 +6240,7 @@ function NotificationsScreen({
 
             {pushSetupStatus === "registered" ? (
               <div className="text-sm mt-1" style={{ color: "#2F6E62" }}>
-                âœ“ This browser is registered for REunited push alerts.
+                ✓ This browser is registered for REunited push alerts.
               </div>
             ) : pushSetupStatus === "unsupported" ? (
               <div className="text-sm mt-1" style={{ color: "#7C2D12" }}>
@@ -6578,10 +6578,10 @@ function DeleteAccountStep1Screen({ onBack, onContinue }) {
       <div className="amr-panel rounded-lg p-4 mb-6">
         <p className="text-sm mb-3">Deleting your account will permanently remove:</p>
         <ul className="text-sm space-y-1.5" style={{ color: "#6B6459" }}>
-          <li>Â· Your personal profile and contact information</li>
-          <li>Â· Private pet identifiers and pet photos</li>
-          <li>Â· Notifications and message text you've sent</li>
-          <li>Â· Your ability to sign in to this account</li>
+          <li>· Your personal profile and contact information</li>
+          <li>· Private pet identifiers and pet photos</li>
+          <li>· Notifications and message text you've sent</li>
+          <li>· Your ability to sign in to this account</li>
         </ul>
         <p className="text-sm mt-3" style={{ color: "#6B6459" }}>
           Community recovery history may be retained in anonymized form so other users'
@@ -6623,7 +6623,7 @@ function DeleteAccountStep2Screen({ onBack, onConfirm }) {
       <ScreenHeader title="Confirm Deletion" onBack={onBack} />
       <p className="text-sm mb-4" style={{ color: "#6B6459" }}>
         Type <span className="font-semibold" style={{ color: "#20291F" }}>DELETE</span> below
-        to permanently delete your account. This is the final step â€” there's
+        to permanently delete your account. This is the final step — there's
         no undo after this.
       </p>
 
@@ -6671,7 +6671,7 @@ function AmariMessageScreen({ rank, onBack }) {
             {para}
           </p>
         ))}
-        <p className="mt-3 font-semibold" style={{ color: "#20291F" }}>â€” Amari</p>
+        <p className="mt-3 font-semibold" style={{ color: "#20291F" }}>— Amari</p>
       </div>
     </div>
   );
@@ -6833,32 +6833,32 @@ function ReunionStoryScreen({ story, onBack }) {
         )}
         <div className="amr-panel rounded-lg p-4 text-left">
           {isPublicStory && (
-            <div className="font-semibold text-sm mb-2">{story.petName} is home â¤ï¸</div>
+            <div className="font-semibold text-sm mb-2">{story.petName} is home ❤️</div>
           )}
           {isPublicStory && story.lostDateLabel && story.foundDateLabel && (
             <div className="flex items-center gap-2 text-xs mb-3 pb-3" style={{ color: "#6B6459", borderBottom: "1px solid #CBBFA0" }}>
-              <span>ðŸ—“ï¸ Missing since {story.lostDateLabel}</span>
-              <span>Â·</span>
-              <span>â¤ï¸ Found {story.foundDateLabel}</span>
+              <span>🗓️ Missing since {story.lostDateLabel}</span>
+              <span>·</span>
+              <span>❤️ Found {story.foundDateLabel}</span>
             </div>
           )}
           <p className="text-sm italic mb-3">"{story.message}"</p>
           {isPublicStory ? (
             <>
               <p className="text-xs" style={{ color: "#6B6459" }}>
-                â€” {story.ownerName}, {story.petName}'s owner
+                — {story.ownerName}, {story.petName}'s owner
               </p>
               <p className="text-xs mt-1" style={{ color: "#6B6459" }}>
                 {story.heroName
-                  ? `ðŸ† Hero: ${story.heroName}`
+                  ? `🏆 Hero: ${story.heroName}`
                   : story.reunionMethod === "SELF_FOUND"
                     ? "Found by owner"
                     : "Reunited"}
-                {story.timeLabel ? ` Â· ${story.timeLabel}` : ""}
+                {story.timeLabel ? ` · ${story.timeLabel}` : ""}
               </p>
             </>
           ) : (
-            <p className="text-xs" style={{ color: "#6B6459" }}>â€” Owner of {story.petName}</p>
+            <p className="text-xs" style={{ color: "#6B6459" }}>— Owner of {story.petName}</p>
           )}
         </div>
       </div>
@@ -7287,7 +7287,7 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
           photos={photos}
           startIndex={lightboxIndex}
           title={pet.name}
-          subtitle={`${pet.breed} Â· ${pet.species}`}
+          subtitle={`${pet.breed} · ${pet.species}`}
           onClose={() => setLightboxIndex(null)}
         />
       )}
@@ -7311,7 +7311,7 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
 
           <div>
             <div className="font-semibold text-lg">{pet.name}</div>
-            <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} Â· {pet.species}</div>
+            <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} · {pet.species}</div>
           </div>
         </div>
 
@@ -7356,7 +7356,7 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
               </div>
               <div className="flex justify-between gap-3">
                 <span style={{ color: "#6B6459" }}>Last seen</span>
-                <span className="font-medium text-right">{pet.lastSeenLabel} Â· {pet.distanceLabel}</span>
+                <span className="font-medium text-right">{pet.lastSeenLabel} · {pet.distanceLabel}</span>
               </div>
             </>
           )}
@@ -7374,7 +7374,7 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
       )}
 
       <div className="text-sm mb-4" style={{ color: "#6B6459" }}>
-        ðŸ‘€ {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
+        👀 {sightingCount} sighting{sightingCount === 1 ? "" : "s"} reported
       </div>
 
       {isOwnPet && isActive && (
@@ -7587,7 +7587,7 @@ function DetailsScreen({
         </button>
         {pin && (
           <span className="text-xs text-right" style={{ color: "#6B6459" }}>
-            {pin.isCurrent ? "Current location Â· " : ""}
+            {pin.isCurrent ? "Current location · " : ""}
             {coordsForPin(pin)}
           </span>
         )}
@@ -7604,7 +7604,7 @@ function DetailsScreen({
           }}
         >
           <div className="font-semibold">
-            GPS accuracy: Â±{Math.round(Number(missingGps.accuracy))} m
+            GPS accuracy: ±{Math.round(Number(missingGps.accuracy))} m
           </div>
           <div className="mt-1">
             {Number(missingGps.accuracy) <= 50
@@ -7667,7 +7667,7 @@ function ReviewScreen({ pet, coords, timeLabel, radiusKm, setRadiusKm, onBack, o
           </div>
           <div>
             <div className="font-semibold">{pet.name}</div>
-            <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} Â· {pet.species}</div>
+            <div className="text-xs" style={{ color: "#6B6459" }}>{pet.breed} · {pet.species}</div>
           </div>
         </div>
         <div className="text-sm space-y-1.5">
@@ -8016,7 +8016,7 @@ function ActiveScreen({
           </div>
           ${
             String(sighting.ownerVerdict || "").toUpperCase() === "LIKELY_MATCH"
-              ? '<div style="font-size:12px;font-weight:700;color:#2F6E62;margin-bottom:5px;">âœ“ Owner marked as Likely Match</div>'
+              ? '<div style="font-size:12px;font-weight:700;color:#2F6E62;margin-bottom:5px;">✓ Owner marked as Likely Match</div>'
               : ""
           }
           <div style="font-size:12px;margin-bottom:3px;">
@@ -8206,7 +8206,7 @@ function ActiveScreen({
                 aria-label={`Map showing ${pet.name}'s last-seen location and ${currentRadiusKm} kilometer alert radius`}
               />
               <div className="text-xs mt-2" style={{ color: "#6B6459" }}>
-                Orange pin: last-seen location Â· Exact sighting GPS is hidden and is not plotted on this client map Â· Circle: current {currentRadiusKm} km alert area
+                Orange pin: last-seen location · Exact sighting GPS is hidden and is not plotted on this client map · Circle: current {currentRadiusKm} km alert area
               </div>
               <div className="text-xs mt-1 font-semibold" style={{ color: "#2F6E62" }}>
                 Sighting locations are kept private on the client. Server-side matching continues to use the protected location.
@@ -8273,7 +8273,7 @@ function ActiveScreen({
           </div>
           {potentialMatchesLoading && (
             <span className="text-xs" style={{ color: "#6B6459" }}>
-              Loadingâ€¦
+              Loading…
             </span>
           )}
         </div>
@@ -8468,7 +8468,7 @@ function ActiveScreen({
                         className="amr-btn-teal py-2.5 rounded-md text-sm"
                         style={{ opacity: isSaving ? 0.6 : 1 }}
                       >
-                        {isSaving ? "Savingâ€¦" : "Likely Match"}
+                        {isSaving ? "Saving…" : "Likely Match"}
                       </button>
                       <button
                         type="button"
@@ -8493,7 +8493,7 @@ function ActiveScreen({
                       }}
                     >
                       {isVerified
-                        ? "âœ“ You marked this sighting as a Likely Match."
+                        ? "✓ You marked this sighting as a Likely Match."
                         : "This sighting was reviewed as Not My Pet."}
                     </div>
                   )}
@@ -8801,7 +8801,7 @@ function TrailScreen({
                           color: "#6B6459",
                         }}
                       >
-                        {s.distanceLabel} Â·{" "}
+                        {s.distanceLabel} ·{" "}
                         {s.timeLabel}
                       </div>
                     </div>
@@ -8824,7 +8824,7 @@ function TrailScreen({
                     {s.signals.map(
                       (sig, index) => (
                         <li key={index}>
-                          Â· {sig}
+                          · {sig}
                         </li>
                       ),
                     )}
@@ -8844,7 +8844,7 @@ function TrailScreen({
                       color: "#20291F",
                     }}
                   >
-                    ðŸ’¬ {publicDisplayName(s.reporterName)}:{" "}
+                    💬 {publicDisplayName(s.reporterName)}:{" "}
                   </span>
 
                   <span
@@ -8897,11 +8897,11 @@ function TrailScreen({
 
                 {s.ownerVerdict === "LIKELY_MATCH" ? (
                   <div className="text-xs font-semibold" style={{ color: "#2F6E62" }}>
-                    âœ“ Marked as Likely Match
+                    ✓ Marked as Likely Match
                   </div>
                 ) : s.ownerVerdict === "NOT_MY_PET" ? (
                   <div className="text-xs font-semibold" style={{ color: "#E2572B" }}>
-                    âœ• Marked as Not My Pet
+                    ✕ Marked as Not My Pet
                   </div>
                 ) : (
                   <>
@@ -8950,7 +8950,7 @@ function TrailScreen({
                         border: "1px solid #2F6E62",
                       }}
                     >
-                      âœ“ Report submitted to REunited for review. The sighting stays in the trail while moderation reviews it.
+                      ✓ Report submitted to REunited for review. The sighting stays in the trail while moderation reviews it.
                     </div>
                   ) : (
                     <button
@@ -9014,7 +9014,7 @@ function TrailScreen({
                 aria-label="Close"
                 disabled={abuseSubmitting}
               >
-                Ã—
+                ×
               </button>
             </div>
 
@@ -9093,7 +9093,7 @@ function TrailScreen({
                 disabled={abuseSubmitting}
                 style={{ opacity: abuseSubmitting ? 0.65 : 1 }}
               >
-                {abuseSubmitting ? "Submittingâ€¦" : "Submit report"}
+                {abuseSubmitting ? "Submitting…" : "Submit report"}
               </button>
             </div>
           </div>
@@ -9112,7 +9112,7 @@ function TrailScreen({
                 ].filter(Boolean)
           }
           title={publicDisplayName(enlargedSighting.reporterName)}
-          subtitle={`${enlargedSighting.distanceLabel} Â· ${enlargedSighting.timeLabel}`}
+          subtitle={`${enlargedSighting.distanceLabel} · ${enlargedSighting.timeLabel}`}
           onClose={() =>
             setEnlargedSighting(null)
           }
@@ -9225,7 +9225,7 @@ function MessageThreadScreen({
       <div className="flex-1 flex flex-col gap-2 mb-4">
         {loading && (
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
-            Loading conversationâ€¦
+            Loading conversation…
           </p>
         )}
 
@@ -9269,7 +9269,7 @@ function MessageThreadScreen({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Type a messageâ€¦"
+          placeholder="Type a message…"
           disabled={loading || sending}
           className="amr-chip flex-1 px-3 py-2.5 rounded-md text-sm"
         />
@@ -9454,7 +9454,7 @@ function PhotoLightbox({
             }}
             aria-label="Close"
           >
-            Ã—
+            ×
           </button>
         </div>
       </div>
@@ -9557,7 +9557,7 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost
         <ScreenHeader title="Community" />
       </FixedHeader>
       <p className="text-sm mb-4" style={{ color: "#6B6459" }}>
-        Dogs of REunited, doing dog things â€” and the reunions that brought some of them home.
+        Dogs of REunited, doing dog things — and the reunions that brought some of them home.
       </p>
 
       <div className="flex gap-2 mb-5">
@@ -9588,7 +9588,7 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost
           ) : (
             <div className="amr-panel rounded-lg p-4 mb-5">
               <p className="text-sm mb-3" style={{ color: "#6B6459" }}>
-                Add a pet to your profile before posting â€” Community photos are for pets you actually own.
+                Add a pet to your profile before posting — Community photos are for pets you actually own.
               </p>
               <button onClick={onAddPet} className="amr-btn-secondary w-full py-2 rounded-md text-sm flex items-center justify-center gap-2">
                 <Plus size={15} />
@@ -9690,21 +9690,21 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost
               </div>
               <div className="p-3.5">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-semibold text-sm">{story.petName} is home â¤ï¸</span>
+                  <span className="font-semibold text-sm">{story.petName} is home ❤️</span>
                   <span className="text-xs" style={{ color: "#6B6459" }}>{story.timeLabel}</span>
                 </div>
                 {story.lostDateLabel && story.foundDateLabel && (
                   <p className="text-xs mb-1.5" style={{ color: "#6B6459" }}>
-                    Missing {story.lostDateLabel} â†’ Found {story.foundDateLabel}
+                    Missing {story.lostDateLabel} → Found {story.foundDateLabel}
                   </p>
                 )}
                 <p className="text-sm italic mb-2">"{story.message}"</p>
                 <p className="text-xs" style={{ color: "#6B6459" }}>
                   {story.ownerName}
                   {story.heroName
-                    ? ` Â· ðŸ† Hero: ${story.heroName}`
+                    ? ` · 🏆 Hero: ${story.heroName}`
                     : story.reunionMethod === "SELF_FOUND"
-                      ? " Â· Found by owner"
+                      ? " · Found by owner"
                       : ""}
                 </p>
               </div>
@@ -9936,7 +9936,7 @@ function NewPostScreen({ pets, onBack, onSubmit }) {
             </button>
           </div>
           <p className="text-xs mt-2" style={{ color: "#6B6459" }}>
-            Preview only â€” this photo is not uploaded until you tap Share to Community.
+            Preview only — this photo is not uploaded until you tap Share to Community.
           </p>
         </div>
       )}
@@ -10233,7 +10233,7 @@ return () => {
 
           if (Number.isFinite(accuracy)) {
             setLocationStatus(
-              `Location captured (about Â±${Math.round(accuracy)} m).`,
+              `Location captured (about ±${Math.round(accuracy)} m).`,
             );
           } else {
             setLocationStatus("Location captured.");
@@ -10609,7 +10609,7 @@ return () => {
       <ScreenHeader title="Report a Found Pet" onBack={onBack} />
 
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
-        Take a photo and confirm where you found them â€” we'll check this
+        Take a photo and confirm where you found them — we'll check this
         against active missing-pet reports nearby.
       </p>
 
@@ -10618,7 +10618,7 @@ return () => {
       </div>
 
       <div className="text-xs mb-2" style={{ color: "#6B6459" }}>
-        Up to 3 photos â€” different angles help confirm identity.
+        Up to 3 photos — different angles help confirm identity.
       </div>
 
       <input
@@ -10653,7 +10653,7 @@ return () => {
               }}
               aria-label={`Remove photo ${index + 1}`}
             >
-              Ã—
+              ×
             </button>
           </div>
         ))}
@@ -10888,7 +10888,7 @@ function FoundPetMatchesScreen({
 
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         These are active missing-pet reports returned near the location
-        you provided. This is not automatic photo recognition â€” compare
+        you provided. This is not automatic photo recognition — compare
         the pet carefully before reporting a possible match.
       </p>
 
@@ -10961,7 +10961,7 @@ function FoundPetMatchesScreen({
                     >
                       {[pet.breed, pet.primaryColor]
                         .filter(Boolean)
-                        .join(" Â· ") || "Details available in report"}
+                        .join(" · ") || "Details available in report"}
                     </div>
 
                     {pet.distanceLabel && (
@@ -10999,7 +10999,7 @@ function FoundPetMatchesScreen({
       >
         {submitting
           ? "Posting..."
-          : "None of these match â€” post to Found Pets Board"}
+          : "None of these match — post to Found Pets Board"}
       </button>
     </div>
   );
@@ -11015,7 +11015,7 @@ function FoundPetPostedScreen({ onDone }) {
       <div className="amr-display text-4xl mb-1" style={{ color: "#2F6E62" }}>REPORT POSTED</div>
       <p className="text-sm mb-6" style={{ color: "#6B6459" }}>
         Your found-pet report is now visible on the Found Pets Board. If an
-        owner's report matches later, keep an eye on your messages â€” and
+        owner's report matches later, keep an eye on your messages — and
         consider taking them to a local vet or shelter to check for a
         microchip.
       </p>
@@ -11441,7 +11441,7 @@ function ReportSightingScreen({
               className="text-xs"
               style={{ color: "#6B6459" }}
             >
-              {pet.breed} Â· {pet.species}
+              {pet.breed} · {pet.species}
             </div>
 
             {pet.lastLocationText &&
@@ -11472,7 +11472,7 @@ function ReportSightingScreen({
       </div>
 
       <div className="font-semibold text-sm mb-2">
-        ðŸ“ Sighting location
+        📍 Sighting location
       </div>
 
       <div
@@ -11508,7 +11508,7 @@ function ReportSightingScreen({
             className="text-xs"
             style={{ color: "#2F6E62" }}
           >
-            âœ“ Location captured
+            ✓ Location captured
             <br />
             Exact GPS is hidden. REunited will use only an approximate sighting area in the user interface.
           </div>
@@ -11574,7 +11574,7 @@ function ReportSightingScreen({
       />
 
       <div className="font-semibold text-sm mb-1">
-        ðŸ“· Photos ({photos.length}/
+        📷 Photos ({photos.length}/
         {MAX_SIGHTING_PHOTOS})
       </div>
 
@@ -11625,7 +11625,7 @@ function ReportSightingScreen({
               className="text-xs"
               style={{ color: "#2F6E62" }}
             >
-              âœ“ {photo.name}
+              ✓ {photo.name}
             </div>
           ))}
         </div>
@@ -11768,7 +11768,7 @@ function PendingSightingScreen({ pet, sighting, onFinalize, onDone }) {
       <p className="text-sm mb-6" style={{ color: "#6B6459" }}>
         {done
           ? `${pet.name}'s owner has been notified.`
-          : "This appears on the map right away â€” confidence fills in as each check completes."}
+          : "This appears on the map right away — confidence fills in as each check completes."}
       </p>
 
       <div className="amr-panel rounded-lg p-4 mb-6 text-left">
@@ -11794,7 +11794,7 @@ function PendingSightingScreen({ pet, sighting, onFinalize, onDone }) {
       </div>
 
       <button disabled={!done} onClick={onDone} className="amr-btn-teal w-full py-3 rounded-md">
-        {done ? "View sighting trail" : "Scoring in progressâ€¦"}
+        {done ? "View sighting trail" : "Scoring in progress…"}
       </button>
     </div>
   );
@@ -11967,7 +11967,7 @@ function ReuniteScreen({
                       className="block text-xs font-semibold mt-1"
                       style={{ color: "#2F6E62" }}
                     >
-                      âœ“ Owner verified Likely Match
+                      ✓ Owner verified Likely Match
                     </span>
                   )}
                 </span>
@@ -12013,7 +12013,7 @@ function ReuniteScreen({
       </div>
       <p className="text-xs mb-5" style={{ color: "#6B6459" }}>
         {shareAsStory
-          ? "Your story will appear in Community â†’ Reunion Stories."
+          ? "Your story will appear in Community → Reunion Stories."
           : "Your reunion details will stay private."}
       </p>
 
@@ -12029,7 +12029,7 @@ function ReuniteScreen({
         className="amr-btn-primary w-full py-3 rounded-md"
         style={{ opacity: submitting ? 0.65 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
       >
-        {submitting ? "Completing Reunionâ€¦" : "Complete Reunion"}
+        {submitting ? "Completing Reunion…" : "Complete Reunion"}
       </button>
     </div>
   );
@@ -12052,7 +12052,7 @@ function ReunitedScreen({ pet, reunion, onDone }) {
         <div className="amr-panel rounded-lg p-4 mb-6 text-left">
           <div className="flex items-center gap-2 mb-2">
             <Award size={18} color="#E2572B" />
-            <span className="font-semibold text-sm">ðŸ† Hero Badge awarded</span>
+            <span className="font-semibold text-sm">🏆 Hero Badge awarded</span>
           </div>
           <p className="text-sm mb-1">
             <span className="font-semibold">{reunion.heroName}</span> helped bring {pet.name} home.
@@ -12084,7 +12084,7 @@ function WelcomeStep({ onContinue, onLogin }) {
       </div>
 
       <div className="amr-display text-3xl leading-none mb-3 text-center">
-        BRINGING THEM HOME â¤ï¸
+        BRINGING THEM HOME ❤️
       </div>
       <p className="text-sm mb-3">
         REunited is a community-powered platform created to help missing pets find their way home.
@@ -12092,7 +12092,7 @@ function WelcomeStep({ onContinue, onLogin }) {
       <p className="text-sm mb-3" style={{ color: "#6B6459" }}>
         When a pet goes missing, every minute matters. REunited connects pet
         owners with people nearby through location-based alerts, real-time
-        sightings, photos, and community support â€” turning people around you
+        sightings, photos, and community support — turning people around you
         into helping eyes.
       </p>
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
@@ -12402,7 +12402,7 @@ function ForgotPasswordStep({ onBack }) {
         onClick={sendResetLink}
         className="amr-btn-primary w-full py-3 rounded-md"
       >
-        {submitting ? "Sendingâ€¦" : "Send Reset Link"}
+        {submitting ? "Sending…" : "Send Reset Link"}
       </button>
 
       <p className="text-xs mt-4 text-center" style={{ color: "#6B6459" }}>
@@ -12556,7 +12556,7 @@ function ResetPasswordScreen({ token, onDone }) {
         onClick={submitReset}
         className="amr-btn-primary w-full py-3 rounded-md mt-3"
       >
-        {submitting ? "Updatingâ€¦" : "Update Password"}
+        {submitting ? "Updating…" : "Update Password"}
       </button>
     </div>
   );
@@ -13527,7 +13527,7 @@ function AdminPendingReportsScreen({
       ) : reports.length === 0 ? (
         <div className="amr-panel rounded-lg p-4 text-center">
           <p className="text-sm mb-3">
-            All caught up â€” no missing reports are waiting
+            All caught up — no missing reports are waiting
             for review.
           </p>
           <button
@@ -13555,7 +13555,7 @@ function AdminPendingReportsScreen({
                   >
                     Report #{report.report_id}
                     {report.pet_id
-                      ? ` Â· Pet #${report.pet_id}`
+                      ? ` · Pet #${report.pet_id}`
                       : ""}
                   </div>
                 </div>
@@ -13672,7 +13672,7 @@ function AdminUserReportsScreen({
         </p>
       ) : reports.length === 0 ? (
         <div className="amr-panel rounded-lg p-4 text-center">
-          <p className="text-sm mb-3">All caught up â€” no pending user reports.</p>
+          <p className="text-sm mb-3">All caught up — no pending user reports.</p>
           <button
             onClick={onRefresh}
             className="amr-btn-secondary px-4 py-2 rounded-md text-sm"
@@ -13728,7 +13728,7 @@ function AdminUserReportsScreen({
                       <span style={{ color: "#6B6459" }}>Related case</span>
                       <span className="font-medium text-right">
                         Report #{report.report_id}
-                        {report.related_pet_name ? ` Â· ${report.related_pet_name}` : ""}
+                        {report.related_pet_name ? ` · ${report.related_pet_name}` : ""}
                       </span>
                     </div>
                   )}
@@ -13811,7 +13811,7 @@ function MessagesDrilldown({ feedbackMessages, onSendReply }) {
       <div className="flex flex-col gap-3 mb-4">
         {feedbackMessages.length === 0 && (
           <p className="text-sm italic" style={{ color: "#6B6459" }}>
-            No messages yet â€” founding members can message Amari with feedback from their Profile tab.
+            No messages yet — founding members can message Amari with feedback from their Profile tab.
           </p>
         )}
         {feedbackMessages.map((m, i) => (
@@ -13838,7 +13838,7 @@ function MessagesDrilldown({ feedbackMessages, onSendReply }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="Reply as Amariâ€¦"
+            placeholder="Reply as Amari…"
             className="amr-chip flex-1 px-3 py-2.5 rounded-md text-sm"
           />
           <button
@@ -13896,8 +13896,8 @@ function AdminDrilldownScreen({
                   <span className="text-xs font-semibold" style={{ color: "#2F6E62" }}>ACTIVE</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  Last seen {c.lastSeenLabel} Â· {c.radiusKm} km alert radius
-                  {c.lastLocationText ? ` Â· ${c.lastLocationText}` : ""}
+                  Last seen {c.lastSeenLabel} · {c.radiusKm} km alert radius
+                  {c.lastLocationText ? ` · ${c.lastLocationText}` : ""}
                 </div>
               </button>
             ))}
@@ -13908,7 +13908,7 @@ function AdminDrilldownScreen({
       {category === "photoReviews" && (
         <div className="flex flex-col gap-3">
           {photoReviews.length === 0 && (
-            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up â€” no pending reviews.</p>
+            <p className="text-sm italic" style={{ color: "#6B6459" }}>All caught up — no pending reviews.</p>
           )}
           {photoReviews.map((r) => (
             <div key={r.id} className="amr-panel rounded-lg p-3.5">
@@ -13918,7 +13918,7 @@ function AdminDrilldownScreen({
                   <span className="text-xs" style={{ color: "#6B6459" }}>{r.timeLabel}</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  Submitted by {r.submitterName} Â· {r.reason}
+                  Submitted by {r.submitterName} · {r.reason}
                 </div>
               </button>
               <div className="flex gap-2">
@@ -13947,7 +13947,7 @@ function AdminDrilldownScreen({
                   <span className="text-xs" style={{ color: "#6B6459" }}>{r.timeLabel}</span>
                 </div>
                 <div className="text-xs" style={{ color: "#6B6459" }}>
-                  Reported by {r.reportedBy} Â· {r.reason}
+                  Reported by {r.reportedBy} · {r.reason}
                 </div>
               </button>
               <button onClick={() => onResolveReport(r.id)} className="amr-btn-primary w-full py-1.5 rounded-md text-xs">
@@ -13972,11 +13972,11 @@ function AdminDrilldownScreen({
           {reunitedTodayList.map((r) => (
             <button key={r.id} onClick={() => setOpenedItem(r)} className="amr-panel rounded-lg p-3.5 text-left w-full">
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-sm">â¤ï¸ {r.petName}</span>
+                <span className="font-semibold text-sm">❤️ {r.petName}</span>
                 <span className="text-xs" style={{ color: "#6B6459" }}>{r.timeLabel}</span>
               </div>
               <div className="text-xs" style={{ color: "#6B6459" }}>
-                Owner: {r.ownerName}{r.heroName ? ` Â· Hero: ${r.heroName}` : ""}
+                Owner: {r.ownerName}{r.heroName ? ` · Hero: ${r.heroName}` : ""}
               </div>
             </button>
           ))}
@@ -14064,7 +14064,7 @@ function AdminItemDetailScreen({ category, item, onBack, onApprovePhoto, onRejec
 // Shared wording so the one-time welcome screen and the re-readable copy on
 // Profile never drift apart into two different messages.
 function amariMessageText(rank) {
-  return `Hi, I'm Amari â€” the person behind REunited.\n\nThank you for taking this first step. By joining, you're not just protecting your own pet if they ever go missing â€” you're becoming one of the helping eyes that brings other people's pets home too.\n\nYou're member #${rank} of our first 100, and I wanted you to hear that from me directly. Welcome to the community â€” it means more than you know.\n\nIf you have pets, please add them to your profile â€” that's what makes the alerts work for you when it matters. And if you ever have feedback, run into a problem, or just want to say something, message me directly. I read every one myself.`;
+  return `Hi, I'm Amari — the person behind REunited.\n\nThank you for taking this first step. By joining, you're not just protecting your own pet if they ever go missing — you're becoming one of the helping eyes that brings other people's pets home too.\n\nYou're member #${rank} of our first 100, and I wanted you to hear that from me directly. Welcome to the community — it means more than you know.\n\nIf you have pets, please add them to your profile — that's what makes the alerts work for you when it matters. And if you ever have feedback, run into a problem, or just want to say something, message me directly. I read every one myself.`;
 }
 
 function FounderWelcomeScreen({ rank, onContinue }) {
@@ -14088,7 +14088,7 @@ function FounderWelcomeScreen({ rank, onContinue }) {
             {para}
           </p>
         ))}
-        <p className="mt-3 font-semibold" style={{ color: "#20291F" }}>â€” Amari</p>
+        <p className="mt-3 font-semibold" style={{ color: "#20291F" }}>— Amari</p>
       </div>
 
       <button onClick={onContinue} className="amr-btn-primary w-full py-3 rounded-md">
