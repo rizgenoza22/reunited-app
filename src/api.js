@@ -422,6 +422,20 @@ export async function deletePetPhoto(
   return handleResponse(response);
 }
 
+export async function removePet(petId) {
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${petId}`,
+    {
+      method: "DELETE",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
 export async function reorderPetPhotos(
   petId,
   photoIds,

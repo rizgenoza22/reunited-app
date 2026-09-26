@@ -67,6 +67,7 @@ import {
   addPetPhotos,
   replacePetPhoto,
   deletePetPhoto,
+  removePet,
   reorderPetPhotos,
   setPrimaryPetPhoto,
   reportPetMissing,
@@ -3237,6 +3238,61 @@ const selectedPet = [
     return updated;
   }
 
+  async function removeSelectedPet() {
+    if (!selectedPet?.backendPetId) {
+      throw new Error("Pet record is not available.");
+    }
+
+    const petId = selectedPet.id;
+    const backendPetId = selectedPet.backendPetId;
+
+    await removePet(backendPetId);
+
+    setPets((current) =>
+      current.filter((item) => item.id !== petId),
+    );
+
+    setActiveCases((current) => {
+      const next = { ...current };
+      delete next[petId];
+      return next;
+    });
+
+    setCaseDates((current) => {
+      const next = { ...current };
+      delete next[petId];
+      return next;
+    });
+
+    setBackendCaseIdByPet((current) => {
+      const next = { ...current };
+      delete next[petId];
+      return next;
+    });
+
+    setReportIdByPet((current) => {
+      const next = { ...current };
+      delete next[petId];
+      return next;
+    });
+
+    setSightingsByPet((current) => {
+      const next = { ...current };
+      delete next[petId];
+      return next;
+    });
+
+    setReunitedCases((current) => {
+      const next = { ...current };
+      delete next[petId];
+      return next;
+    });
+
+    setSelectedPetId(null);
+    setSelectedReportId(null);
+    setScreen("home");
+  }
+
   // Generic message thread -- works for a sighting reporter (from a Trail)
   // or a Found Pets Board finder (from Alerts), since both are just "a
   // person you might need to coordinate with," not something tied to a
@@ -4072,6 +4128,7 @@ onRefreshNearby={loadNearbyAlerts}
           onReportSighting={() => openReportSighting(selectedPet.id)}
           onReportMissing={() => startReport(selectedPet.id)}
           onEditPhotos={() => setScreen("editPetPhotos")}
+          onRemovePet={removeSelectedPet}
         />
       )}
       {screen === "editPetPhotos" && selectedPet && isOwnPet && (
@@ -6919,7 +6976,7 @@ function EditPetPhotosScreen({
   );
 }
 
-function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onViewTrail, onReportSighting, onReportMissing, onEditPhotos }) {
+function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onViewTrail, onReportSighting, onReportMissing, onEditPhotos, onRemovePet }) {
   const photos = pet.photos && pet.photos.length > 0 ? pet.photos : [pet.color];
   const primaryPhoto =
     pet.primaryPhotoUrl && isRealPhoto(pet.primaryPhotoUrl)
@@ -6931,6 +6988,34 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
         : null;
 
   const [lightboxIndex, setLightboxIndex] = useState(null); // index into photos, or null when closed
+  const [removingPet, setRemovingPet] = useState(false);
+  const [removePetError, setRemovePetError] = useState(null);
+
+  async function handleRemovePet() {
+    if (isActive || removingPet) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${pet.name} from My Pets? This removes the pet from your My Pets list but preserves existing rescue history.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRemovingPet(true);
+    setRemovePetError(null);
+
+    try {
+      await onRemovePet();
+    } catch (error) {
+      setRemovePetError(
+        error.message || "Unable to remove this pet.",
+      );
+      setRemovingPet(false);
+    }
+  }
 
   return (
     <div>
@@ -7067,6 +7152,37 @@ function PetProfileScreen({ pet, isOwnPet, isActive, sightingCount, onBack, onVi
           Report Missing Now
         </button>
       )}
+
+      {isOwnPet && (
+        <div className="mt-4 pt-4 border-t" style={{ borderColor: "#DED6C8" }}>
+          <button
+            type="button"
+            onClick={handleRemovePet}
+            disabled={isActive || removingPet}
+            className="w-full py-2.5 rounded-md text-sm font-medium border disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              color: "#B42318",
+              borderColor: "#D92D20",
+              background: "transparent",
+            }}
+          >
+            {removingPet ? "Removing..." : "Remove Pet"}
+          </button>
+
+          {isActive && (
+            <p className="text-xs mt-2" style={{ color: "#6B6459" }}>
+              Resolve the active missing-pet search before removing this pet.
+            </p>
+          )}
+
+          {removePetError && (
+            <p className="text-xs mt-2" style={{ color: "#B42318" }}>
+              {removePetError}
+            </p>
+          )}
+        </div>
+      )}
+
       {!isOwnPet && (
         <button onClick={onReportSighting} className="amr-btn-secondary w-full py-3 rounded-md flex items-center justify-center gap-2">
           <Camera size={15} />
