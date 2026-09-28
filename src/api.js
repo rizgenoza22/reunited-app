@@ -897,6 +897,31 @@ export async function createCommunityPost({
   return handleResponse(response);
 }
 
+export async function reportCommunityPost(
+  postId,
+  {
+    reason,
+    details = null,
+  },
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/community/posts/${Number(postId)}/report`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        reason,
+        details,
+      }),
+    },
+  );
+
+  return handleResponse(response);
+}
+
 export async function toggleCommunityPostLike(postId) {
   const response = await fetch(
     `${API_BASE_URL}/community/posts/${Number(postId)}/like`,

@@ -93,6 +93,7 @@ import {
   getCommunityPosts,
   createCommunityPost,
   toggleCommunityPostLike,
+  reportCommunityPost,
   getFoundPets,
   createFoundPet,
   uploadFoundPetPhoto,
@@ -3223,6 +3224,12 @@ const selectedPet = [
     }
   }
 
+  async function reportPost(postId, { reason, details }) {
+    return reportCommunityPost(postId, {
+      reason,
+      details: details || null,
+    });
+  }
   useEffect(() => {
     if (screen !== "feed") return;
     void refreshCommunityPosts();
@@ -4245,6 +4252,7 @@ onRefreshNearby={loadNearbyAlerts}
           communityLoading={communityLoading}
           communityError={communityError}
           onLike={likePost}
+          onReport={reportPost}
           onNewPost={() => setScreen("newPost")}
           onAddPet={openAddPet}
           hasPets={pets.length > 0}
@@ -9510,8 +9518,65 @@ function TabBar({
   );
 }
 
-function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost, onAddPet, hasPets, reunionStories, reunionStoriesLoading, onViewReunionStory }) {
+function FeedScreen({ posts, communityLoading, communityError, onLike, onReport, onNewPost, onAddPet, hasPets, reunionStories, reunionStoriesLoading, onViewReunionStory }) {
   const [subTab, setSubTab] = useState("photos"); // "photos" | "stories"
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const [reportSuccess, setReportSuccess] = useState("");
+
+  function openReportDialog(post) {
+    setReportTarget(post);
+    setReportReason("");
+    setReportDetails("");
+    setReportError("");
+    setReportSuccess("");
+  }
+
+  function closeReportDialog() {
+    if (reportSubmitting) return;
+
+    setReportTarget(null);
+    setReportReason("");
+    setReportDetails("");
+    setReportError("");
+    setReportSuccess("");
+  }
+
+  async function submitPostReport() {
+    const reason = reportReason.trim();
+    const details = reportDetails.trim();
+
+    if (!reportTarget || !reason || reportSubmitting) {
+      return;
+    }
+
+    setReportSubmitting(true);
+    setReportError("");
+    setReportSuccess("");
+
+    try {
+      await onReport(reportTarget.id, {
+        reason,
+        details,
+      });
+
+      setReportSuccess(
+        "Thank you. This Community post has been sent to the REunited moderation team for review.",
+      );
+    } catch (error) {
+      console.error("Unable to report Community post:", error);
+
+      setReportError(
+        error?.message ||
+          "Unable to submit this report. Please try again.",
+      );
+    } finally {
+      setReportSubmitting(false);
+    }
+  }
   return (
     <div>
       <FixedHeader>
@@ -9596,19 +9661,31 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost
                     <span className="text-xs" style={{ color: "#6B6459" }}>{post.timeLabel}</span>
                   </div>
                   <p className="text-sm mb-2">{post.caption}</p>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-xs" style={{ color: "#6B6459" }}>Posted by {post.posterName}</span>
-                    <button
-                      onClick={() => onLike(post.id)}
-                      className="flex items-center gap-1 text-xs font-semibold"
-                      style={{ color: "#E2572B" }}
-                    >
-                      <Heart
-                        size={14}
-                        fill={post.likedByMe ? "#E2572B" : "none"}
-                      />
-                      {post.likes}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openReportDialog(post)}
+                        className="flex items-center gap-1 text-xs font-semibold"
+                        style={{ color: "#6B6459" }}
+                      >
+                        <AlertTriangle size={13} />
+                        Report
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onLike(post.id)}
+                        className="flex items-center gap-1 text-xs font-semibold"
+                        style={{ color: "#E2572B" }}
+                      >
+                        <Heart
+                          size={14}
+                          fill={post.likedByMe ? "#E2572B" : "none"}
+                        />
+                        {post.likes}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -9617,6 +9694,181 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onNewPost
         </>
       )}
 
+      {reportTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: "rgba(32, 41, 31, 0.58)" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Report Community post"
+        >
+          <div
+            className="w-full max-w-md rounded-xl p-5"
+            style={{
+              background: "#FFFDF8",
+              border: "1px solid #20291F",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle
+                size={22}
+                style={{ color: "#E2572B", flexShrink: 0 }}
+              />
+
+              <div>
+                <h3 className="font-semibold text-base">
+                  Report Community post
+                </h3>
+
+                <p
+                  className="text-sm mt-1"
+                  style={{ color: "#6B6459" }}
+                >
+                  Tell the REunited moderation team why this post should be reviewed.
+                </p>
+              </div>
+            </div>
+
+            {reportSuccess ? (
+              <>
+                <div
+                  className="rounded-lg p-3 text-sm mb-4"
+                  style={{
+                    background: "#EEF6F2",
+                    border: "1px solid #2F6E62",
+                    color: "#2F6E62",
+                  }}
+                >
+                  {reportSuccess}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeReportDialog}
+                  className="amr-btn-primary w-full py-2.5 rounded-md text-sm"
+                >
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <label className="block text-sm font-semibold mb-1.5">
+                  Reason
+                </label>
+
+                <select
+                  value={reportReason}
+                  onChange={(event) => {
+                    setReportReason(event.target.value);
+                    setReportError("");
+                  }}
+                  className="w-full rounded-md px-3 py-2.5 text-sm mb-4"
+                  style={{
+                    background: "#FFFDF8",
+                    border: "1px solid #B8B1A4",
+                  }}
+                  disabled={reportSubmitting}
+                >
+                  <option value="">Select a reason</option>
+                  <option value="INAPPROPRIATE_CONTENT">
+                    Inappropriate content
+                  </option>
+                  <option value="HARASSMENT">
+                    Harassment or bullying
+                  </option>
+                  <option value="SPAM">
+                    Spam or misleading content
+                  </option>
+                  <option value="ANIMAL_SAFETY">
+                    Animal safety concern
+                  </option>
+                  <option value="OTHER">
+                    Other
+                  </option>
+                </select>
+
+                <label className="block text-sm font-semibold mb-1.5">
+                  Additional details
+                  <span
+                    className="font-normal"
+                    style={{ color: "#6B6459" }}
+                  >
+                    {" "}(optional)
+                  </span>
+                </label>
+
+                <textarea
+                  value={reportDetails}
+                  onChange={(event) =>
+                    setReportDetails(
+                      event.target.value.slice(0, 2000),
+                    )
+                  }
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="Add any information that may help the moderation team."
+                  className="w-full rounded-md px-3 py-2.5 text-sm resize-none"
+                  style={{
+                    background: "#FFFDF8",
+                    border: "1px solid #B8B1A4",
+                  }}
+                  disabled={reportSubmitting}
+                />
+
+                <div
+                  className="text-right text-xs mt-1 mb-3"
+                  style={{ color: "#6B6459" }}
+                >
+                  {reportDetails.length}/2000
+                </div>
+
+                {reportError && (
+                  <div
+                    className="rounded-lg p-3 text-sm mb-3"
+                    style={{
+                      background: "#FFF1EF",
+                      border: "1px solid #B42318",
+                      color: "#B42318",
+                    }}
+                  >
+                    {reportError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={closeReportDialog}
+                    className="amr-btn-secondary py-2.5 rounded-md text-sm"
+                    disabled={reportSubmitting}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={submitPostReport}
+                    className="amr-btn-primary py-2.5 rounded-md text-sm"
+                    disabled={!reportReason.trim() || reportSubmitting}
+                    style={{
+                      opacity:
+                        !reportReason.trim() || reportSubmitting
+                          ? 0.65
+                          : 1,
+                    }}
+                  >
+                    {reportSubmitting
+                      ? "Submitting…"
+                      : "Submit report"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {subTab === "stories" && (
         <div className="flex flex-col gap-3">
           {reunionStoriesLoading && (
