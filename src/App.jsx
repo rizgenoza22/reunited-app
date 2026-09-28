@@ -2438,6 +2438,10 @@ const selectedPet = [
     }
   }
 
+  async function openActiveSearchWithSound(petId, reportIdOverride = null) {
+    playDogBark();
+    await openActiveSearch(petId, reportIdOverride);
+  }
   async function openActiveSearch(petId, reportIdOverride = null) {
     setSelectedPetId(petId);
 
@@ -2681,6 +2685,10 @@ const selectedPet = [
     setScreen("active");
   }
 
+  async function openTrailWithSound(petId) {
+    playDogBark();
+    await openTrail(petId);
+  }
   async function openTrail(petId) {
     // Critical #11B: load the latest backend sightings before opening the
     // owner's Sighting Trail. openActiveSearch already resolves the active
@@ -4196,7 +4204,7 @@ const selectedPet = [
           onDismiss={() => setOwnerAlert(null)}
           onViewSighting={() => {
             setOwnerAlert(null);
-            openTrail(ownerAlert.petId);
+            openTrailWithSound(ownerAlert.petId);
           }}
         />
       )}
@@ -4207,8 +4215,8 @@ const selectedPet = [
           reunitedCases={reunitedCases}
           sightingsByPet={sightingsByPet}
           onReport={startReport}
-          onOpenActiveSearch={openActiveSearch}
-          onOpenTrail={openTrail}
+          onOpenActiveSearch={openActiveSearchWithSound}
+          onOpenTrail={openTrailWithSound}
           onAddPet={openAddPet}
           onOpenProfile={(petId) => openPetProfile(petId, "home")}
         />
@@ -4225,7 +4233,7 @@ nearbyError={nearbyError}
 onRefreshNearby={loadNearbyAlerts}
           foundPetsBoard={foundPetsBoard}
           sightingsByPet={sightingsByPet}
-          onOpenTrail={openTrail}
+          onOpenTrail={openTrailWithSound}
           onReportSighting={openReportSighting}
           onOpenProfile={(petId) => openPetProfile(petId, "alerts")}
           onFoundPet={openFoundPet}
