@@ -914,109 +914,8 @@ const PET_AVATAR_COLORS = ["#E2572B", "#2F6E62", "#8A5A44", "#6E7F5C", "#C97B3B"
 // just them and the Hero (see ReuniteScreen). Seeded here so the Community
 // feed's Reunion Stories tab isn't empty before anyone in this session has
 // gone through a full reunite-and-share flow.
-const INITIAL_REUNION_STORIES = [
-  {
-    id: "rs1",
-    petName: "Buddy",
-    ownerName: "Priya N.",
-    heroName: "Jordan T.",
-    message: "Jordan spotted Buddy three blocks from home and waited with him until we arrived. We can't thank them enough.",
-    photoColor: "#C97B3B",
-    timeLabel: "2 days ago",
-    lostDateLabel: "Aug 30, 2026",
-    foundDateLabel: "Sep 5, 2026",
-  },
-  {
-    id: "rs2",
-    petName: "Nala",
-    ownerName: "Diego M.",
-    heroName: "Casey L.",
-    message: "Casey recognized Nala from the alert and messaged us within minutes. She's home safe thanks to this community.",
-    photoColor: "#6E7F5C",
-    timeLabel: "5 days ago",
-    lostDateLabel: "Sep 1, 2026",
-    foundDateLabel: "Sep 2, 2026",
-  },
-];
-
-const INITIAL_POSTS = [
-  {
-    id: "p1",
-    posterName: "Priya N.",
-    dogName: "Buddy",
-    caption: "Buddy discovered puddles today. Zero regrets.",
-    photoColor: "#C97B3B",
-    timeLabel: "2 hr ago",
-    likes: 14,
-    mediaType: "photo",
-  },
-  {
-    id: "p2",
-    posterName: "Diego M.",
-    dogName: "Luna",
-    caption: "Morning walk crew, reporting for duty.",
-    photoColor: "#6E7F5C",
-    timeLabel: "5 hr ago",
-    likes: 9,
-    mediaType: "video",
-    durationLabel: "0:18",
-  },
-  {
-    id: "p3",
-    posterName: "Casey L.",
-    dogName: "Milo",
-    caption: "Someone's very proud of this stick.",
-    photoColor: "#E2572B",
-    timeLabel: "1 day ago",
-    likes: 22,
-    mediaType: "photo",
-  },
-];
-
 const POST_PHOTO_COLORS = ["#E2572B", "#2F6E62", "#C97B3B", "#6E7F5C", "#8A5A44"];
 
-// Other community members' active missing-pet cases. Static/mock -- these
-// aren't yours, so there's no case state machine behind them, just a
-// display + the ability to report a sighting. Shares the same id-keyed
-// sightings/report-sighting flow as your own pets (see selectedPet lookup
-// in MainApp), so "helping a neighbor" and "managing your own case" reuse
-// the same underlying mechanics.
-const COMMUNITY_ALERTS = [
-  {
-    id: "rex",
-    name: "Rex",
-    species: "Dog",
-    breed: "Golden Retriever",
-    color: "#8A5A44",
-    ownerName: "Marcus T.",
-    lastSeenLabel: "20 min ago",
-    distanceLabel: "0.8 km away",
-    radiusKm: 3,
-    sex: "Male",
-    birthday: "2021-04-12",
-    primaryColor: "Golden",
-    markings: "Slight limp on right hind leg",
-    photos: ["#8A5A44", "#C97B3B"],
-  },
-  {
-    id: "coco",
-    name: "Coco",
-    species: "Cat",
-    breed: "Siamese",
-    color: "#6E7F5C",
-    ownerName: "Ana R.",
-    lastSeenLabel: "1 hr ago",
-    distanceLabel: "1.4 km away",
-    radiusKm: 5,
-    sex: "Female",
-    birthday: "2023-06-08",
-    primaryColor: "Cream & brown",
-    markings: "Striking blue eyes, notched left ear",
-    photos: ["#6E7F5C", "#2F6E62"],
-  },
-];
-
-// Found-pet reports that didn't match any active missing-pet case.
 const INITIAL_FOUND_PETS_BOARD = [];
 
 const TIME_CHIPS = ["Just now", "15 minutes ago", "1 hour ago", "This morning"];
@@ -1429,9 +1328,7 @@ function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByTh
   const [nearbyAlerts, setNearbyAlerts] = useState([]);
 const [nearbyLoading, setNearbyLoading] = useState(false);
 const [nearbyError, setNearbyError] = useState(null);
-  const [reportIdByPet, setReportIdByPet] = useState({
-  milo: 5,
-});
+  const [reportIdByPet, setReportIdByPet] = useState({});
   const [apiError, setApiError] = useState(null);
   const [reuniteSubmitting, setReuniteSubmitting] = useState(false);
   const [missingSubmitting, setMissingSubmitting] = useState(false);
@@ -9366,7 +9263,7 @@ function MessageThreadScreen({
 }
 
 
-const MOCK_REPORTER_POOL = ["Alex R.", "Priya N.", "Diego M.", "Casey L."];
+
 
 function PhotoLightbox({
   photos,
@@ -12907,67 +12804,7 @@ function ProfileDetailsStep({
 // triage borders) since this is a genuinely different kind of tool -- an
 // ops dashboard, not a warm community app -- for a different audience.
 //
-// Mock data generators build realistic-looking sample lists so each stat
-// tile can be drilled into. Photo reviews and User Reports are actionable
-// admin-driven workflows. Active Cases and Reunited Today are read-only samples -- those
-// are owner-driven outcomes, not something an admin resolves directly, and
-// 142/14 are illustrative totals rather than the full underlying dataset.
-// ---------------------------------------------------------------------------
 
-const MOCK_FIRST_NAMES = ["Alex", "Priya", "Diego", "Casey", "Jordan", "Sam", "Marcus", "Ana", "Riley", "Noah", "Grace", "Liam", "Sofia", "Ethan", "Mia"];
-const MOCK_LAST_INITIALS = ["R.", "N.", "M.", "L.", "T.", "K.", "P.", "S.", "D.", "W."];
-function mockPersonName(i) {
-  return `${MOCK_FIRST_NAMES[i % MOCK_FIRST_NAMES.length]} ${MOCK_LAST_INITIALS[(i * 3) % MOCK_LAST_INITIALS.length]}`;
-}
-
-
-function buildPhotoReviews(count) {
-  const reasons = ["Possible AI-generation flag", "Low image quality", "Metadata mismatch", "Duplicate image detected"];
-  const petNames = ["Milo", "Rex", "Coco", "Luna", "Buddy", "Nala", "Rocky", "Bella"];
-  return Array.from({ length: count }, (_, i) => ({
-    id: `pr-${i}`,
-    petName: petNames[i % petNames.length],
-    submitterName: mockPersonName(i + 2),
-    reason: reasons[i % reasons.length],
-    timeLabel: `${(i % 12) + 1} min ago`,
-  }));
-}
-
-function buildUserReports(count) {
-  const reasons = ["Spam sightings", "Inappropriate photo", "Harassment", "Suspicious activity"];
-  return Array.from({ length: count }, (_, i) => ({
-    id: `ur-${i}`,
-    reportedUser: mockPersonName(i + 5),
-    reportedBy: mockPersonName(i + 1),
-    reason: reasons[i % reasons.length],
-    timeLabel: `${(i % 5) + 1} hr ago`,
-  }));
-}
-
-function buildActiveCasesSample(count) {
-  const petNames = ["Rex", "Coco", "Bailey", "Shadow", "Daisy", "Zeus", "Piper", "Oreo", "Simba", "Rosie"];
-  const speciesList = ["Dog", "Cat"];
-  const radii = [1, 3, 5];
-  return Array.from({ length: count }, (_, i) => ({
-    id: `case-${i}`,
-    petName: petNames[i % petNames.length],
-    species: speciesList[i % 2],
-    ownerName: mockPersonName(i + 8),
-    lastSeenLabel: `${(i % 8) + 1} hr ago`,
-    radiusKm: radii[i % 3],
-  }));
-}
-
-function buildReunitedToday(count) {
-  const petNames = ["Max", "Milo", "Luna", "Bailey", "Rocky", "Nala", "Daisy", "Oreo", "Piper", "Simba", "Rosie", "Zeus", "Coco", "Bella"];
-  return Array.from({ length: count }, (_, i) => ({
-    id: `reunited-${i}`,
-    petName: petNames[i % petNames.length],
-    ownerName: mockPersonName(i + 3),
-    timeLabel: `${(i % 10) + 1} hr ago`,
-    heroName: i % 3 === 0 ? mockPersonName(i + 7) : null,
-  }));
-}
 
 const ADMIN_CATEGORY_TITLES = {
   activeCases: "Active Missing Cases",
@@ -12983,7 +12820,7 @@ function AdminDashboardScreen({
   onSendReply,
 }) {
   const [drilldown, setDrilldown] = useState(null);
-  const [photoReviews, setPhotoReviews] = useState(() => buildPhotoReviews(27));
+  const [photoReviews, setPhotoReviews] = useState([]);
   const [userReports, setUserReports] = useState([]);
   const [userReportsLoading, setUserReportsLoading] = useState(true);
   const [userReportsError, setUserReportsError] = useState(null);
