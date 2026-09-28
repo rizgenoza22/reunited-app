@@ -7,6 +7,9 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import dogBarkSoundUrl from "./assets/dog-bark.mp3";
+import catMeowSoundUrl from "./assets/cat-meow.mp3";
+import birdChirpSoundUrl from "./assets/bird-chirp.mp3";
+import reunitedSuccessSoundUrl from "./assets/reunited-success.mp3";
 // Both packages are real dependencies (not conditionally installed like
 // @capacitor/app elsewhere in this file), so static imports here are safe
 // for the web build too -- Capacitor's web shim for PushNotifications just
@@ -1502,7 +1505,7 @@ const [nearbyError, setNearbyError] = useState(null);
     () => localStorage.getItem("reunited_animal_sounds_enabled") !== "false",
   );
 
-  const dogBarkAudioRef = useRef(null);
+  const animalSoundAudioRef = useRef(null);
 
   function setAnimalSoundEffectsPreference(enabled) {
     const nextValue = Boolean(enabled);
@@ -1515,30 +1518,60 @@ const [nearbyError, setNearbyError] = useState(null);
     );
   }
 
-  function playDogBark() {
-    if (!animalSoundEffectsEnabled) return;
+  function playAnimalSound(soundUrl, label) {
+    if (!animalSoundEffectsEnabled || !soundUrl) return;
 
     try {
-      if (!dogBarkAudioRef.current) {
-        dogBarkAudioRef.current = new Audio(dogBarkSoundUrl);
-        dogBarkAudioRef.current.preload = "auto";
+      if (animalSoundAudioRef.current) {
+        animalSoundAudioRef.current.pause();
+        animalSoundAudioRef.current.currentTime = 0;
       }
 
-      const audio = dogBarkAudioRef.current;
-
-      audio.pause();
-      audio.currentTime = 0;
+      const audio = new Audio(soundUrl);
+      audio.preload = "auto";
+      animalSoundAudioRef.current = audio;
 
       const playPromise = audio.play();
 
       if (playPromise && typeof playPromise.catch === "function") {
         playPromise.catch((error) => {
-          console.warn("Dog bark playback was blocked:", error);
+          console.warn(`${label} playback was blocked:`, error);
         });
       }
     } catch (error) {
-      console.warn("Unable to play dog bark:", error);
+      console.warn(`Unable to play ${label.toLowerCase()}:`, error);
     }
+  }
+
+  function playDogBark() {
+    playAnimalSound(dogBarkSoundUrl, "Dog bark");
+  }
+
+  function playPetSound(pet) {
+    const species = String(pet?.species || "")
+      .trim()
+      .toLowerCase();
+
+    if (species === "dog") {
+      playAnimalSound(dogBarkSoundUrl, "Dog bark");
+      return;
+    }
+
+    if (species === "cat") {
+      playAnimalSound(catMeowSoundUrl, "Cat meow");
+      return;
+    }
+
+    if (species === "bird") {
+      playAnimalSound(birdChirpSoundUrl, "Bird chirp");
+    }
+  }
+
+  function playReunitedSuccess() {
+    playAnimalSound(
+      reunitedSuccessSoundUrl,
+      "Reunited success sound",
+    );
   }
   const [pushSetupStatus, setPushSetupStatus] = useState(() => {
     if (Capacitor.isNativePlatform()) {
@@ -2162,11 +2195,11 @@ const selectedPet = [
   const activePets = pets.filter((p) => activeCases[p.id] && !reunitedCases[p.id]);
 
   function openAddPet() {
-    playDogBark();
     setScreen("addPet");
   }
   function startReport(petId) {
-    playDogBark();
+    const pet = pets.find((item) => item.id === petId);
+    playPetSound(pet);
     // Critical #7: emergency fast-start. One tap from My Pets opens the
     // missing-pet flow already set to "Just now" and immediately requests
     // the device location. The owner still reviews the pin before activation,
@@ -2439,7 +2472,10 @@ const selectedPet = [
   }
 
   async function openActiveSearchWithSound(petId, reportIdOverride = null) {
-    playDogBark();
+    const pet = [...pets, ...nearbyAlerts].find(
+      (item) => item.id === petId,
+    );
+    playPetSound(pet);
     await openActiveSearch(petId, reportIdOverride);
   }
   async function openActiveSearch(petId, reportIdOverride = null) {
@@ -2686,7 +2722,10 @@ const selectedPet = [
   }
 
   async function openTrailWithSound(petId) {
-    playDogBark();
+    const pet = [...pets, ...nearbyAlerts].find(
+      (item) => item.id === petId,
+    );
+    playPetSound(pet);
     await openTrail(petId);
   }
   async function openTrail(petId) {
@@ -2700,8 +2739,8 @@ const selectedPet = [
   }
 
   function openReportSighting(petId) {
-    playDogBark();
     const pet = [...pets, ...nearbyAlerts].find((item) => item.id === petId);
+    playPetSound(pet);
     const idFromPet = Number(pet?.reportId);
     const idFromBackendKey = String(pet?.id || "").startsWith("backend-report-")
       ? Number(String(pet.id).replace("backend-report-", ""))
@@ -2765,7 +2804,6 @@ const selectedPet = [
   }
 
   function openFoundPet() {
-    playDogBark();
     setFoundPetCapture(null);
     setScreen("foundPet");
   }
@@ -3336,6 +3374,7 @@ const selectedPet = [
         ]);
       }
 
+      playReunitedSuccess();
       setScreen("reunited");
     } catch (error) {
       console.error("Unable to complete reunion:", error);
@@ -5160,6 +5199,7 @@ function AddPetScreen({ onBack, onSave }) {
       >
         <option value="Dog">Dog</option>
         <option value="Cat">Cat</option>
+        <option value="Bird">Bird</option>
         <option value="Other">Other</option>
       </select>
 
@@ -10848,6 +10888,7 @@ return () => {
       >
         <option value="Dog">Dog</option>
         <option value="Cat">Cat</option>
+        <option value="Bird">Bird</option>
         <option value="Other">Other</option>
       </select>
 
