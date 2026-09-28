@@ -1022,41 +1022,6 @@ const INITIAL_FOUND_PETS_BOARD = [];
 const TIME_CHIPS = ["Just now", "15 minutes ago", "1 hour ago", "This morning"];
 const RADIUS_OPTIONS = [1, 3, 5];
 
-// Preloaded so the Trail screen is meaningful before you submit a new one.
-// Mirrors the shape the real pipeline produces: a confidence level plus the
-// per-stage signals that fed it.
-const INITIAL_SIGHTINGS = {
-  milo: [
-    {
-      id: "s1",
-      reporterName: "Jordan T.",
-      distanceLabel: "0.4 km away",
-      timeLabel: "6 minutes ago",
-      confidence: "MEDIUM",
-      signals: [
-        "No strong signs of manipulation",
-        "Visual features consistent with Milo",
-        "No independent corroboration yet",
-      ],
-      photoColor: "#C97B3B",
-    },
-    {
-      id: "s2",
-      reporterName: "Sam K.",
-      distanceLabel: "0.6 km away",
-      timeLabel: "3 minutes ago",
-      confidence: "HIGH",
-      signals: [
-        "No strong signs of manipulation",
-        "Visual features consistent with Milo",
-        "Corroborated by 1 nearby sighting",
-      ],
-      photoColor: "#8A5A44",
-    },
-  ],
-  whiskers: [],
-};
-
 const CONFIDENCE_STYLE = {
   LOW: { bg: "#DED2B4", fg: "#6B6459", label: "Low confidence" },
   MEDIUM: { bg: "#B9C7A6", fg: "#3A4A2E", label: "Medium confidence" },
@@ -1069,13 +1034,6 @@ const CONFIDENCE_STYLE = {
   // kind of claim (custody, not just visual ID).
   CONFIRMED: { bg: "#20291F", fg: "#F2E9D8", label: "🐾 Found & Confirmed" },
 };
-
-const PIPELINE_STAGES = [
-  { key: "manipulation", label: "Checking image authenticity" },
-  { key: "similarity", label: "Comparing against pet profile" },
-  { key: "corroboration", label: "Checking nearby reports" },
-];
-
 
 // e.g. "Sep 3, 2026" -- used for the lost/found dates on Reunion Stories.
 function formatDateLabel(date) {
@@ -1445,7 +1403,7 @@ function mapBackendHeroRecognition(item) {
 
 
 function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByThread, onDeleteAccount, onLogout }) {
-  // home | details | review | active | trail | reportSighting | pendingSighting | reunite | reunited
+  // home | details | review | active | trail | reportSighting | reunite | reunited
   const [screen, setScreen] = useState("home");
   const [privacyConsents, setPrivacyConsents] = useState(null);
   const [showPrivacyConsent, setShowPrivacyConsent] = useState(false);
@@ -1480,7 +1438,7 @@ const [nearbyError, setNearbyError] = useState(null);
   const [missingGps, setMissingGps] = useState(null);
   const [missingGpsStatus, setMissingGpsStatus] = useState("idle");
   const [reunitedCases, setReunitedCases] = useState({}); // petId -> { heroName, message }
-  const [sightingsByPet, setSightingsByPet] = useState(INITIAL_SIGHTINGS);
+  const [sightingsByPet, setSightingsByPet] = useState({});
   const [potentialMatchesByPet, setPotentialMatchesByPet] = useState({});
   const [potentialMatchesLoading, setPotentialMatchesLoading] = useState(false);
   const [potentialMatchSavingId, setPotentialMatchSavingId] = useState(null);
@@ -2750,57 +2708,6 @@ const selectedPet = [
     setSelectedPetId(petId);
     setSelectedReportId(idFromPet || idFromBackendKey || idFromOwnPetMap || null);
     setScreen("reportSighting");
-  }
-
-  async function submitSighting(newSighting) {
-    const backendCaseId = backendCaseIdByPet[selectedPetId];
-    let finalSighting = newSighting;
-
-    // Resolved BEFORE navigating to PendingSightingScreen, deliberately --
-    // if we set backendTracked after the screen has already mounted and
-    // started its local simulated pipeline, the two could race (simulated
-    // and real results both trying to finalize the same sighting). Backend
-    // calls here are to a local/nearby service, so this adds negligible
-    // delay in the common case.
-    if (backendCaseId && newSighting.captureLat) {
-      try {
-        const created = await apiFetch("/sightings", {
-          method: "POST",
-          body: JSON.stringify({
-            caseId: backendCaseId,
-            reporterId: newSighting.reporterName,
-            captureLat: newSighting.captureLat,
-            captureLng: newSighting.captureLng,
-            gpsAccuracyMeters: newSighting.gpsAccuracyMeters,
-            capturedAt: new Date().toISOString(),
-            // Demo transport: a unique string per photo standing in for
-            // real image bytes, so repeat submissions don't hash
-            // identically and trip the backend's duplicate-image check.
-            imageBase64: `${newSighting.id}-0-${Math.random().toString(36).slice(2)}`,
-            additionalImageBase64: (newSighting.photos || []).slice(1).map(
-              (_, i) => `${newSighting.id}-${i + 1}-${Math.random().toString(36).slice(2)}`
-            ),
-            comment: newSighting.comment || undefined,
-          }),
-        });
-        // Real backend id + flag so PendingSightingScreen polls for real
-        // signals. Local-only display fields (photos, reporterName,
-        // distanceLabel) are kept from the original entry.
-        finalSighting = { ...newSighting, id: created.id, backendTracked: true };
-        setApiError(null);
-      } catch (err) {
-        setApiError(err.message);
-        // finalSighting stays as the original -- PendingSightingScreen
-        // falls back to the local simulated pipeline for it.
-      }
-    }
-
-    setSightingsByPet((prev) => ({
-      ...prev,
-      [selectedPetId]: [...(prev[selectedPetId] || []), finalSighting],
-    }));
-    setSightingsSubmittedCount((prev) => prev + 1);
-    setScreen("pendingSighting");
   }
 
   function openFoundPet() {
@@ -4660,14 +4567,7 @@ onRefreshNearby={loadNearbyAlerts}
     }}
   />
 )}
-      {screen === "pendingSighting" && selectedPet && (
-        <PendingSightingScreen
-          pet={selectedPet}
-          sighting={(sightingsByPet[selectedPet.id] || []).slice(-1)[0]}
-          onFinalize={finalizeSighting}
-          onDone={() => setScreen(isOwnPet ? "trail" : "alerts")}
-        />
-      )}
+
       {screen === "reunite" && selectedPet && (
         <ReuniteScreen
           pet={selectedPet}
@@ -11847,133 +11747,6 @@ function ReportSightingScreen({
         {loading
           ? "Submitting..."
           : "Submit Sighting"}
-      </button>
-    </div>
-  );
-}
-
-// Backend signal stages arrive as MANIPULATION_RISK/PET_SIMILARITY/
-// CORROBORATION -- mapped to the same 0/1/2 order as PIPELINE_STAGES so the
-// UI can show identical progress regardless of whether it's polling the
-// real backend or running the local simulation.
-const BACKEND_STAGE_TO_INDEX = { MANIPULATION_RISK: 0, PET_SIMILARITY: 1, CORROBORATION: 2 };
-
-function PendingSightingScreen({ pet, sighting, onFinalize, onDone }) {
-  const [stageIndex, setStageIndex] = useState(0);
-  const [done, setDone] = useState(false);
-  const finalRef = useRef({ confidence: "MEDIUM", signals: [] });
-
-  // Local simulated pipeline -- only for sightings NOT backed by a real
-  // case (backend unreachable, or this pet's case never activated against
-  // it). Guards out immediately for backend-tracked sightings.
-  useEffect(() => {
-    if (!sighting || sighting.backendTracked) return;
-    if (stageIndex >= PIPELINE_STAGES.length) {
-      const signals = [
-        "No strong signs of manipulation or AI generation",
-        "Visual features consistent with the reported pet",
-        "Corroborated by another nearby sighting",
-      ];
-      const confidence = "HIGH";
-      finalRef.current = { confidence, signals };
-      onFinalize(sighting.id, confidence, signals);
-      setDone(true);
-      return;
-    }
-    const t = setTimeout(() => setStageIndex((i) => i + 1), 700);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageIndex, sighting]);
-
-  // Real backend polling -- only for backend-tracked sightings. Polls
-  // GET /sightings/:id until status is SCORED, updating stage progress as
-  // each real signal lands (not on a fixed timer, unlike the simulation).
-  useEffect(() => {
-    if (!sighting || !sighting.backendTracked) return;
-    let cancelled = false;
-    let attempts = 0;
-
-    async function poll() {
-      try {
-        const s = await apiFetch(`/sightings/${sighting.id}`);
-        if (cancelled) return;
-        const completedIndexes = (s.signals || []).map((sig) => BACKEND_STAGE_TO_INDEX[sig.stage]);
-        setStageIndex(completedIndexes.length > 0 ? Math.max(...completedIndexes) + 1 : 0);
-        attempts += 1;
-        if (s.status === "SCORED") {
-          const signalTexts = (s.signals || []).map((sig) => sig.detail);
-          finalRef.current = { confidence: s.confidence, signals: signalTexts };
-          onFinalize(sighting.id, s.confidence, signalTexts);
-          setDone(true);
-        } else if (attempts < 20) {
-          setTimeout(poll, 700);
-        } else {
-          // Gave it ~14s -- stop waiting rather than hang forever.
-          finalRef.current = { confidence: "LOW", signals: ["Scoring is taking longer than expected."] };
-          onFinalize(sighting.id, "LOW", finalRef.current.signals);
-          setDone(true);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        // Backend became unreachable mid-poll -- surface a result rather
-        // than leaving this screen stuck forever.
-        finalRef.current = { confidence: "LOW", signals: [`Couldn't reach the server: ${err.message}`] };
-        onFinalize(sighting.id, "LOW", finalRef.current.signals);
-        setDone(true);
-      }
-    }
-    poll();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sighting]);
-
-  if (!sighting) return null;
-
-  return (
-    <div className="text-center pt-6">
-      <div className="flex justify-center mb-4">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center"
-          style={{ background: done ? "#2F6E62" : "#CBBFA0" }}
-        >
-          {done ? <CheckCircle2 size={32} color="#F2E9D8" /> : <RotateCw size={26} className="animate-spin" color="#20291F" />}
-        </div>
-      </div>
-      <div className="amr-display text-4xl mb-1" style={{ color: "#20291F" }}>
-        {done ? "SIGHTING SCORED" : "CHECKING SIGHTING"}
-      </div>
-      <p className="text-sm mb-6" style={{ color: "#6B6459" }}>
-        {done
-          ? `${pet.name}'s owner has been notified.`
-          : "This appears on the map right away — confidence fills in as each check completes."}
-      </p>
-
-      <div className="amr-panel rounded-lg p-4 mb-6 text-left">
-        {PIPELINE_STAGES.map((stage, i) => (
-          <div key={stage.key} className="flex items-center gap-2.5 py-1.5">
-            {i < stageIndex ? (
-              <CheckCircle2 size={16} color="#2F6E62" />
-            ) : i === stageIndex && !done ? (
-              <RotateCw size={16} className="animate-spin" color="#6B6459" />
-            ) : (
-              <span className="w-4 h-4 rounded-full" style={{ border: "2px solid #CBBFA0" }} />
-            )}
-            <span className="text-sm" style={{ color: i <= stageIndex ? "#20291F" : "#6B6459" }}>
-              {stage.label}
-            </span>
-          </div>
-        ))}
-        {done && (
-          <div className="amr-fade-in mt-2 pt-2" style={{ borderTop: "1px solid #CBBFA0" }}>
-            <ConfidenceBadge level={finalRef.current.confidence} />
-          </div>
-        )}
-      </div>
-
-      <button disabled={!done} onClick={onDone} className="amr-btn-teal w-full py-3 rounded-md">
-        {done ? "View sighting trail" : "Scoring in progress…"}
       </button>
     </div>
   );
