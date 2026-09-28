@@ -959,12 +959,6 @@ function calculateAge(birthday) {
 }
 
 
-// A fixed thread id for founding-member feedback, since there's only ever
-// one such thread per session (unlike sighting/found-pet threads, which are
-// keyed by that item's own id). Replies in this thread come from a real
-// admin typing on the Admin dashboard, not a canned auto-reply -- see
-// sendAdminReply in App, and the reply box on the Messages drilldown.
-const ADMIN_FEEDBACK_THREAD_ID = "admin-feedback";
 function relativeTimeLabel(dateValue) {
   if (!dateValue) {
     return "recently";
@@ -1823,9 +1817,6 @@ const [nearbyError, setNearbyError] = useState(null);
   const [realThreadLoading, setRealThreadLoading] = useState(false);
   const [realThreadError, setRealThreadError] = useState(null);
   const [realThreadSending, setRealThreadSending] = useState(false);
-  // messagesByThread/setMessagesByThread now come from App as props -- lifted
-  // up so the admin-feedback thread survives switching to the Admin view
-  // (MainApp fully unmounts on that switch, which would otherwise discard it).
   const [profileOrigin, setProfileOrigin] = useState("home"); // where "back" from the profile screen goes
   const mapRef = useRef(null);
 
@@ -4144,14 +4135,9 @@ onRefreshNearby={loadNearbyAlerts}
           onViewReunionStory={(id) => openReunionStory(id, "profile")}
           onEditProfile={() => setScreen("profileEdit")}
           onViewAmariMessage={() => setScreen("amariMessage")}
-          onMessageAmari={() =>
-            openMessageThread({
-              id: ADMIN_FEEDBACK_THREAD_ID,
-              title: "Amari",
-              subtitle: "Feedback for the REunited team",
-              origin: "profile",
-            })
-          }
+          onMessageAmari={() => {
+            window.location.href = `mailto:${SUPPORT_EMAIL}?subject=REunited%20Feedback`;
+          }}
           onOpenSettings={() => setScreen("settings")}
         />
       )}
@@ -5521,7 +5507,7 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
             className="amr-btn-secondary w-full py-2 rounded-md text-sm flex items-center justify-center gap-2"
           >
             <MessageCircle size={15} />
-            Message Amari with feedback
+            Email Amari with feedback
           </button>
         </div>
       )}
@@ -12810,14 +12796,12 @@ const ADMIN_CATEGORY_TITLES = {
   activeCases: "Active Missing Cases",
   photoReviews: "Photo Reviews",
   userReports: "User Reports",
-  messages: "Messages",
+
   reunitedToday: "Reunited Today",
 };
 
 function AdminDashboardScreen({
   onExit,
-  feedbackMessages,
-  onSendReply,
 }) {
   const [drilldown, setDrilldown] = useState(null);
   const [photoReviews, setPhotoReviews] = useState([]);
@@ -13090,8 +13074,6 @@ function AdminDashboardScreen({
         userReports={userReports}
         activeCasesSample={activeCasesSample}
         reunitedTodayList={reunitedTodayList}
-        feedbackMessages={feedbackMessages}
-        onSendReply={onSendReply}
         onApprovePhoto={(id) => setPhotoReviews((prev) => prev.filter((r) => r.id !== id))}
         onRejectPhoto={(id) => setPhotoReviews((prev) => prev.filter((r) => r.id !== id))}
         onResolveReport={(id) => setUserReports((prev) => prev.filter((r) => r.id !== id))}
@@ -13585,68 +13567,9 @@ function AdminUserReportsScreen({
   );
 }
 
-function MessagesDrilldown({ feedbackMessages, onSendReply }) {
-  const [draft, setDraft] = useState("");
-
-  function submit() {
-    const text = draft.trim();
-    if (!text) return;
-    onSendReply(text);
-    setDraft("");
-  }
-
-  return (
-    <div>
-      <div className="flex flex-col gap-3 mb-4">
-        {feedbackMessages.length === 0 && (
-          <p className="text-sm italic" style={{ color: "#6B6459" }}>
-            No messages yet — founding members can message Amari with feedback from their Profile tab.
-          </p>
-        )}
-        {feedbackMessages.map((m, i) => (
-          <div
-            key={i}
-            className="amr-panel rounded-lg p-3.5"
-            style={{ borderLeft: `4px solid ${m.sender === "you" ? "#2F6E62" : "#E2572B"}` }}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-sm">{m.sender === "you" ? "Member" : "Amari"}</span>
-              <span className="text-xs" style={{ color: "#6B6459" }}>{m.timeLabel}</span>
-            </div>
-            <p className="text-sm">{m.text}</p>
-          </div>
-        ))}
-      </div>
-
-      {feedbackMessages.length > 0 && (
-        <div className="flex gap-2">
-          <input
-            id="admin-message-draft"
-            name="adminMessageDraft"
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="Reply as Amari…"
-            className="amr-chip flex-1 px-3 py-2.5 rounded-md text-sm"
-          />
-          <button
-            onClick={submit}
-            disabled={!draft.trim()}
-            className="amr-btn-primary px-4 rounded-md flex items-center justify-center"
-            aria-label="Send reply"
-          >
-            <Send size={16} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AdminDrilldownScreen({
-  category, onBack, photoReviews, userReports, activeCasesSample, reunitedTodayList, feedbackMessages,
-  onApprovePhoto, onRejectPhoto, onResolveReport, onSendReply,
+  category, onBack, photoReviews, userReports, activeCasesSample, reunitedTodayList,
+  onApprovePhoto, onRejectPhoto, onResolveReport,
 }) {
   const [openedItem, setOpenedItem] = useState(null); // the specific item tapped, or null for the list view
 
@@ -13747,9 +13670,6 @@ function AdminDrilldownScreen({
         </div>
       )}
 
-      {category === "messages" && (
-        <MessagesDrilldown feedbackMessages={feedbackMessages} onSendReply={onSendReply} />
-      )}
 
       {category === "reunitedToday" && (
         <div className="flex flex-col gap-3">
@@ -14166,17 +14086,6 @@ export default function App() {
   // never see messages sent while the app view was active.
   const [messagesByThread, setMessagesByThread] = useState({});
 
-  // Admin's side of real two-way messaging with founding members. Appends to
-  // the same shared state MainApp reads, so a reply sent here shows up in
-  // the member's thread immediately -- no separate sync mechanism needed,
-  // since both views are reading the one source of truth.
-  function sendAdminReply(threadId, text) {
-    const reply = { sender: "them", text, timeLabel: "just now" };
-    setMessagesByThread((prev) => ({
-      ...prev,
-      [threadId]: [...(prev[threadId] || []), reply],
-    }));
-  }
 
   // Logout: clears the session so this device stops being authenticated,
   // without touching the account itself (unlike deleteAccount above, which
@@ -14309,8 +14218,6 @@ export default function App() {
         ) : view === "admin" && isAdmin ? (
           <AdminDashboardScreen
             onExit={() => setView("app")}
-            feedbackMessages={messagesByThread[ADMIN_FEEDBACK_THREAD_ID] || []}
-            onSendReply={(text) => sendAdminReply(ADMIN_FEEDBACK_THREAD_ID, text)}
           />
         ) : view === "app" ? (
           <MainApp
