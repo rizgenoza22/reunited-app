@@ -13769,6 +13769,43 @@ function AdminUserReportsScreen({
                   </div>
                 )}
 
+                {report.community_post_id && (
+                  <div
+                    className="rounded-md p-3 mb-3"
+                    style={{ background: "#F5EFE3", border: "1px solid #C9BFAE" }}
+                  >
+                    <div
+                      className="text-xs font-semibold mb-2"
+                      style={{ color: "#6B6459" }}
+                    >
+                      REPORTED COMMUNITY POST
+                    </div>
+
+                    {report.community_post_photo_url && (
+                      <img
+                        src={report.community_post_photo_url}
+                        alt="Reported Community post"
+                        className="w-full rounded-md mb-2 object-cover"
+                        style={{ maxHeight: "220px" }}
+                      />
+                    )}
+
+                    {report.community_post_caption ? (
+                      <div className="text-sm mb-1">
+                        {report.community_post_caption}
+                      </div>
+                    ) : (
+                      <div className="text-sm mb-1" style={{ color: "#6B6459" }}>
+                        No caption provided.
+                      </div>
+                    )}
+
+                    <div className="text-xs" style={{ color: "#6B6459" }}>
+                      Community Post #{report.community_post_id}
+                    </div>
+                  </div>
+                )}
+
                 <label className="block text-xs font-semibold mb-1" style={{ color: "#6B6459" }}>
                   RESOLUTION NOTE (OPTIONAL)
                 </label>
