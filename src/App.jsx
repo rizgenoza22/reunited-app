@@ -2161,7 +2161,12 @@ const selectedPet = [
   const isOwnPet = selectedPetId ? pets.some((p) => p.id === selectedPetId) : false;
   const activePets = pets.filter((p) => activeCases[p.id] && !reunitedCases[p.id]);
 
+  function openAddPet() {
+    playDogBark();
+    setScreen("addPet");
+  }
   function startReport(petId) {
+    playDogBark();
     // Critical #7: emergency fast-start. One tap from My Pets opens the
     // missing-pet flow already set to "Just now" and immediately requests
     // the device location. The owner still reviews the pin before activation,
@@ -2687,6 +2692,7 @@ const selectedPet = [
   }
 
   function openReportSighting(petId) {
+    playDogBark();
     const pet = [...pets, ...nearbyAlerts].find((item) => item.id === petId);
     const idFromPet = Number(pet?.reportId);
     const idFromBackendKey = String(pet?.id || "").startsWith("backend-report-")
@@ -2751,6 +2757,7 @@ const selectedPet = [
   }
 
   function openFoundPet() {
+    playDogBark();
     setFoundPetCapture(null);
     setScreen("foundPet");
   }
@@ -4202,7 +4209,7 @@ const selectedPet = [
           onReport={startReport}
           onOpenActiveSearch={openActiveSearch}
           onOpenTrail={openTrail}
-          onAddPet={() => setScreen("addPet")}
+          onAddPet={openAddPet}
           onOpenProfile={(petId) => openPetProfile(petId, "home")}
         />
       )}
@@ -4402,7 +4409,7 @@ onRefreshNearby={loadNearbyAlerts}
           communityError={communityError}
           onLike={likePost}
           onNewPost={() => setScreen("newPost")}
-          onAddPet={() => setScreen("addPet")}
+          onAddPet={openAddPet}
           hasPets={pets.length > 0}
           reunionStories={reunionStories}
           reunionStoriesLoading={reunionStoriesLoading}
