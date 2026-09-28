@@ -6,6 +6,7 @@ import {
 } from 'react';
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import dogBarkSoundUrl from "./assets/dog-bark.mp3";
 // Both packages are real dependencies (not conditionally installed like
 // @capacitor/app elsewhere in this file), so static imports here are safe
 // for the web build too -- Capacitor's web shim for PushNotifications just
@@ -1496,6 +1497,49 @@ const [nearbyError, setNearbyError] = useState(null);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState(null);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+
+  const [animalSoundEffectsEnabled, setAnimalSoundEffectsEnabled] = useState(
+    () => localStorage.getItem("reunited_animal_sounds_enabled") !== "false",
+  );
+
+  const dogBarkAudioRef = useRef(null);
+
+  function setAnimalSoundEffectsPreference(enabled) {
+    const nextValue = Boolean(enabled);
+
+    setAnimalSoundEffectsEnabled(nextValue);
+
+    localStorage.setItem(
+      "reunited_animal_sounds_enabled",
+      String(nextValue),
+    );
+  }
+
+  function playDogBark() {
+    if (!animalSoundEffectsEnabled) return;
+
+    try {
+      if (!dogBarkAudioRef.current) {
+        dogBarkAudioRef.current = new Audio(dogBarkSoundUrl);
+        dogBarkAudioRef.current.preload = "auto";
+      }
+
+      const audio = dogBarkAudioRef.current;
+
+      audio.pause();
+      audio.currentTime = 0;
+
+      const playPromise = audio.play();
+
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch((error) => {
+          console.warn("Dog bark playback was blocked:", error);
+        });
+      }
+    } catch (error) {
+      console.warn("Unable to play dog bark:", error);
+    }
+  }
   const [pushSetupStatus, setPushSetupStatus] = useState(() => {
     if (Capacitor.isNativePlatform()) {
       return localStorage.getItem("reunited_push_registered") === "true"
@@ -4259,6 +4303,9 @@ onRefreshNearby={loadNearbyAlerts}
           onEditProfile={() => setScreen("profileEdit")}
           onChangePassword={() => setScreen("changePassword")}
           onNotificationSettings={() => setScreen("notificationSettings")}
+          animalSoundEffectsEnabled={animalSoundEffectsEnabled}
+          onAnimalSoundEffectsChange={setAnimalSoundEffectsPreference}
+          onTestAnimalSound={playDogBark}
           onPrivacyPolicy={() => setScreen("privacyPolicy")}
           onTerms={() => setScreen("terms")}
           onContactSupport={() => {
@@ -5792,7 +5839,20 @@ function ProfileScreen({ userProfile, myPetsCount, myReportsCount, sightingsCoun
   );
 }
 
-function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificationSettings, onPrivacyPolicy, onTerms, onContactSupport, onDeleteAccount, onLogout }) {
+function SettingsScreen({
+  onBack,
+  onEditProfile,
+  onChangePassword,
+  onNotificationSettings,
+  animalSoundEffectsEnabled,
+  onAnimalSoundEffectsChange,
+  onTestAnimalSound,
+  onPrivacyPolicy,
+  onTerms,
+  onContactSupport,
+  onDeleteAccount,
+  onLogout,
+}) {
   return (
     <div>
       <ScreenHeader title="Settings" onBack={onBack} />
@@ -5816,6 +5876,69 @@ function SettingsScreen({ onBack, onEditProfile, onChangePassword, onNotificatio
         ))}
       </div>
 
+      <div className="font-semibold text-xs mb-2" style={{ color: "#6B6459" }}>
+        ANIMAL SOUND EFFECTS
+      </div>
+
+      <div className="amr-panel rounded-lg mb-5 overflow-hidden">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-sm font-medium">Dog Bark Sound</div>
+              <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
+                Play a short single bark on supported pet actions.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={animalSoundEffectsEnabled}
+              aria-label="Animal sound effects"
+              onClick={() =>
+                onAnimalSoundEffectsChange(!animalSoundEffectsEnabled)
+              }
+              className="relative shrink-0 rounded-full transition-colors"
+              style={{
+                width: "48px",
+                height: "28px",
+                backgroundColor: animalSoundEffectsEnabled
+                  ? "#2F6E62"
+                  : "#D6D0C7",
+              }}
+            >
+              <span
+                className="absolute rounded-full bg-white transition-all"
+                style={{
+                  width: "22px",
+                  height: "22px",
+                  top: "3px",
+                  left: animalSoundEffectsEnabled ? "23px" : "3px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                }}
+              />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={onTestAnimalSound}
+            disabled={!animalSoundEffectsEnabled}
+            className="mt-3 text-sm font-semibold"
+            style={{
+              color: animalSoundEffectsEnabled
+                ? "#2F6E62"
+                : "#A99C88",
+              opacity: animalSoundEffectsEnabled ? 1 : 0.6,
+              cursor: animalSoundEffectsEnabled
+                ? "pointer"
+                : "not-allowed",
+            }}
+          >
+            Test Bark
+          </button>
+        </div>
+      </div>
       <button
         onClick={onLogout}
         className="w-full text-left flex items-center justify-between px-4 py-3 rounded-lg mb-5"
