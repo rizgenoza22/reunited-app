@@ -205,6 +205,53 @@ export async function updateAlertLocation(
   return handleResponse(response);
 }
 
+export async function getAlertAreaStatus() {
+  const response = await fetch(
+    `${API_BASE_URL}/notifications/alert-area-status`,
+    {
+      method: "GET",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function updateHomeAlertLocation(latitude, longitude) {
+  const response = await fetch(
+    `${API_BASE_URL}/notifications/home-alert-location`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+      }),
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function clearHomeAlertLocation() {
+  const response = await fetch(
+    `${API_BASE_URL}/notifications/home-alert-location`,
+    {
+      method: "DELETE",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
 export async function setNearbyAlertsEnabled(enabled) {
   const response = await fetch(
     `${API_BASE_URL}/notifications/nearby-alerts`,

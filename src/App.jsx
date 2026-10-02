@@ -61,6 +61,9 @@ import {
   getNotifications,
   getNotificationUnreadCount,
   updateAlertLocation,
+  getAlertAreaStatus,
+  updateHomeAlertLocation,
+  clearHomeAlertLocation,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   getMessageThread,
@@ -5196,6 +5199,113 @@ function AlertsScreen({
 }) {
   const hasAny = myActivePets.length > 0 || communityAlerts.length > 0;
   const [enlargedFoundPet, setEnlargedFoundPet] = useState(null);
+  const [homeAlertConfigured, setHomeAlertConfigured] = useState(null);
+  const [homeAlertBusy, setHomeAlertBusy] = useState(false);
+  const [homeAlertMessage, setHomeAlertMessage] = useState("");
+  const [homeAlertError, setHomeAlertError] = useState("");
+  const [alertAreaStatusLoading, setAlertAreaStatusLoading] = useState(true);
+  const [currentAreaActive, setCurrentAreaActive] = useState(false);
+  const [currentAreaUpdatedAt, setCurrentAreaUpdatedAt] = useState(null);
+
+  async function refreshAlertAreaStatus() {
+    setAlertAreaStatusLoading(true);
+
+    try {
+      const status = await getAlertAreaStatus();
+      setHomeAlertConfigured(Boolean(status?.homeAreaConfigured));
+      setCurrentAreaActive(Boolean(status?.currentAreaActive));
+      setCurrentAreaUpdatedAt(status?.currentAreaUpdatedAt || null);
+    } catch (error) {
+      console.error("Alert Area status load error:", error);
+      setHomeAlertConfigured(null);
+      setCurrentAreaActive(false);
+      setCurrentAreaUpdatedAt(null);
+    } finally {
+      setAlertAreaStatusLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshAlertAreaStatus();
+  }, []);
+
+  async function saveHomeAlertArea() {
+    if (homeAlertBusy) return;
+
+    setHomeAlertBusy(true);
+    setHomeAlertMessage("");
+    setHomeAlertError("");
+
+    if (!navigator.geolocation) {
+      setHomeAlertBusy(false);
+      setHomeAlertError("Location is not available on this device.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+
+          // Setting Home Area is an explicit foreground location action.
+          // Refresh Current Area first so the backend alert-location row
+          // always exists before Home Area is saved.
+          await updateAlertLocation(latitude, longitude, true);
+
+          await updateHomeAlertLocation(latitude, longitude);
+
+          setHomeAlertConfigured(true);
+          setHomeAlertMessage(
+            "Home Alert Area saved. Your exact location stays private.",
+          );
+          await refreshAlertAreaStatus();
+        } catch (error) {
+          console.error("Home Alert Area save error:", error);
+          setHomeAlertError(
+            error.message || "Unable to save your Home Alert Area.",
+          );
+        } finally {
+          setHomeAlertBusy(false);
+        }
+      },
+      (error) => {
+        console.error("Home Alert Area location error:", error);
+        setHomeAlertBusy(false);
+        setHomeAlertError(
+          "Please allow location access to set your Home Alert Area.",
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  }
+
+  async function removeHomeAlertArea() {
+    if (homeAlertBusy) return;
+
+    setHomeAlertBusy(true);
+    setHomeAlertMessage("");
+    setHomeAlertError("");
+
+    try {
+      await clearHomeAlertLocation();
+      setHomeAlertConfigured(false);
+      setHomeAlertMessage("Home Alert Area removed.");
+      await refreshAlertAreaStatus();
+    } catch (error) {
+      console.error("Home Alert Area remove error:", error);
+      setHomeAlertError(
+        error.message || "Unable to remove your Home Alert Area.",
+      );
+    } finally {
+      setHomeAlertBusy(false);
+    }
+  }
+
   return (
     <div>
       <FixedHeader>
@@ -5204,6 +5314,96 @@ function AlertsScreen({
       <p className="text-sm mb-5" style={{ color: "#6B6459" }}>
         Every active search nearby, yours and the community's.
       </p>
+
+      <div className="amr-panel rounded-lg p-4 mb-5">
+        <div className="font-semibold text-sm mb-3 flex items-center gap-2">
+          <Bell size={15} />
+          Your Alert Areas
+        </div>
+
+        <div
+          className="rounded-md p-3 mb-3"
+          style={{ background: "#EDE3CD" }}
+        >
+          <div className="font-semibold text-sm mb-1">
+            📍 Current Alert Area
+          </div>
+          <div className="text-xs mb-1" style={{ color: "#6B6459" }}>
+            {alertAreaStatusLoading
+              ? "Checking your Current Alert Area..."
+              : currentAreaActive
+                ? "Active — your recently shared location can receive nearby alerts."
+                : "Not currently active. Opening Nearby Alerts refreshes it when location access is allowed."}
+          </div>
+          <div className="text-xs" style={{ color: "#6B6459" }}>
+            Current Area stays eligible for up to 24 hours after an active
+            location update. REunited does not continuously track your
+            location in the background.
+          </div>
+        </div>
+
+        <div
+          className="rounded-md p-3"
+          style={{ background: "#EDE3CD" }}
+        >
+          <div className="font-semibold text-sm mb-1">
+            🏠 Home Alert Area
+          </div>
+
+          <div className="text-xs mb-3" style={{ color: "#6B6459" }}>
+            {alertAreaStatusLoading
+              ? "Checking your saved Home Alert Area..."
+              : homeAlertConfigured === true
+                ? "Saved. This area remains active until you change or remove it."
+                : homeAlertConfigured === false
+                  ? "No Home Alert Area is currently saved."
+                  : "Home Alert Area status could not be loaded. You can safely set or update it below."}
+          </div>
+
+          <button
+            type="button"
+            onClick={saveHomeAlertArea}
+            disabled={homeAlertBusy}
+            className="amr-btn-teal w-full py-2 rounded-md text-sm"
+          >
+            {homeAlertBusy
+              ? "Updating..."
+              : homeAlertConfigured === true
+                ? "Change Home Area"
+                : "Set / Update Home Area"}
+          </button>
+
+          {homeAlertConfigured === true && (
+            <button
+              type="button"
+              onClick={removeHomeAlertArea}
+              disabled={homeAlertBusy}
+              className="amr-btn-secondary w-full py-2 rounded-md text-sm mt-2"
+            >
+              Remove Home Area
+            </button>
+          )}
+
+          {homeAlertMessage && (
+            <div
+              className="text-xs mt-2"
+              style={{ color: "#2F6E62" }}
+            >
+              {homeAlertMessage}
+            </div>
+          )}
+
+          {homeAlertError && (
+            <div
+              className="text-xs mt-2"
+              style={{ color: "#B33A2B" }}
+            >
+              {homeAlertError}
+            </div>
+          )}
+        </div>
+      </div>
+
 {nearbyLoading && (
   <div
     className="text-sm mb-4"
