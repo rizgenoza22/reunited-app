@@ -64,7 +64,9 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   getMessageThread,
+  getFoundPetMessageThread,
   sendPrivateMessage,
+  sendFoundPetPrivateMessage,
   getMessageThreads,
   getPets,
   createPet,
@@ -1793,6 +1795,11 @@ const [nearbyError, setNearbyError] = useState(null);
             row.reporter_name ||
             "REunited member",
 
+          finderUserId:
+            row.reporter_id != null
+              ? Number(row.reporter_id)
+              : null,
+
           photoUrl: rawPhoto,
 
           photos: rawPhoto
@@ -3483,6 +3490,7 @@ const selectedPet = [
     screen,
     messageThreadSubject?.isReal,
     messageThreadSubject?.reportId,
+    messageThreadSubject?.foundPetId,
     messageThreadSubject?.otherUserId,
   ]);
 
@@ -3499,10 +3507,15 @@ const selectedPet = [
     setRealThreadMessages([]);
 
     try {
-      const rows = await getMessageThread(
-        subject.reportId,
-        subject.otherUserId,
-      );
+      const rows = subject.isFoundPet
+        ? await getFoundPetMessageThread(
+            subject.foundPetId,
+            subject.otherUserId,
+          )
+        : await getMessageThread(
+            subject.reportId,
+            subject.otherUserId,
+          );
 
       setRealThreadMessages(
         (Array.isArray(rows) ? rows : []).map((message) => ({
@@ -3539,11 +3552,17 @@ const selectedPet = [
       setRealThreadError(null);
 
       try {
-        const saved = await sendPrivateMessage(
-          subject.reportId,
-          subject.otherUserId,
-          text,
-        );
+        const saved = subject.isFoundPet
+          ? await sendFoundPetPrivateMessage(
+              subject.foundPetId,
+              subject.otherUserId,
+              text,
+            )
+          : await sendPrivateMessage(
+              subject.reportId,
+              subject.otherUserId,
+              text,
+            );
 
         setRealThreadMessages((prev) => [
           ...prev,
@@ -4080,10 +4099,14 @@ onRefreshNearby={loadNearbyAlerts}
           onFoundPet={openFoundPet}
           onMessageFinder={(f) =>
             openMessageThread({
-              id: f.id,
+              id: `found-pet-${f.foundPetId}-${f.finderUserId}`,
               title: f.finderName,
               subtitle: `About the pet they found — ${f.species} · ${f.locationLabel}`,
               origin: "alerts",
+              foundPetId: f.foundPetId ? Number(f.foundPetId) : null,
+              otherUserId: f.finderUserId ? Number(f.finderUserId) : null,
+              isFoundPet: true,
+              isReal: Boolean(f.foundPetId && f.finderUserId),
             })
           }
         />

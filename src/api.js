@@ -585,6 +585,23 @@ export async function getMessageThread(
   return handleResponse(response);
 }
 
+export async function getFoundPetMessageThread(
+  foundPetId,
+  otherUserId,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/messages/found-pet-thread/${foundPetId}/${otherUserId}`,
+    {
+      method: "GET",
+      headers: {
+        ...authHeaders(),
+      },
+    },
+  );
+
+  return handleResponse(response);
+}
+
 export async function sendPrivateMessage(
   reportId,
   recipientId,
@@ -600,6 +617,30 @@ export async function sendPrivateMessage(
       },
       body: JSON.stringify({
         report_id: Number(reportId),
+        recipient_id: Number(recipientId),
+        message_text: messageText,
+      }),
+    },
+  );
+
+  return handleResponse(response);
+}
+
+export async function sendFoundPetPrivateMessage(
+  foundPetId,
+  recipientId,
+  messageText,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        found_pet_id: Number(foundPetId),
         recipient_id: Number(recipientId),
         message_text: messageText,
       }),
