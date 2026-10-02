@@ -3770,9 +3770,6 @@ const selectedPet = [
 
   async function openNotification(notification) {
     try {
-      // Notifications are informational only.
-      // Opening one marks it as read but does not navigate away from
-      // the Notifications screen. Sightings are accessed from Alerts.
       if (!notification.is_read) {
         await markNotificationAsRead(notification.notification_id);
 
@@ -3786,10 +3783,17 @@ const selectedPet = [
 
         setNotificationUnreadCount((count) => Math.max(0, count - 1));
       }
+
+      const foundPetId = Number(notification.found_pet_id);
+
+      if (Number.isFinite(foundPetId) && foundPetId > 0) {
+        await loadFoundPetsBoard();
+        setScreen("alerts");
+      }
     } catch (error) {
       console.error("Open notification error:", error);
       setNotificationsError(
-        error.message || "Unable to mark this notification as read.",
+        error.message || "Unable to open this notification.",
       );
     }
   }
