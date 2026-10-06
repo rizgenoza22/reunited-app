@@ -3799,6 +3799,64 @@ const selectedPet = [
       );
     }
   }
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    let cancelled = false;
+    let actionListener = null;
+
+    const registerPushTapListener = async () => {
+      actionListener = await PushNotifications.addListener(
+        "pushNotificationActionPerformed",
+        async (action) => {
+          try {
+            if (cancelled) {
+              return;
+            }
+
+            const data = action?.notification?.data || {};
+            const foundPetId = Number(
+              data.foundPetId ?? data.found_pet_id,
+            );
+
+            if (!Number.isFinite(foundPetId) || foundPetId <= 0) {
+              return;
+            }
+
+            await loadFoundPetsBoard();
+
+            if (cancelled) {
+              return;
+            }
+
+            setFocusedFoundPetId(foundPetId);
+            setScreen("alerts");
+          } catch (error) {
+            console.error("Native push notification tap error:", error);
+          }
+        },
+      );
+
+      if (cancelled && actionListener) {
+        await actionListener.remove();
+        actionListener = null;
+      }
+    };
+
+    registerPushTapListener().catch((error) => {
+      console.error("Native push tap listener setup error:", error);
+    });
+
+    return () => {
+      cancelled = true;
+
+      if (actionListener) {
+        actionListener.remove().catch(() => {});
+      }
+    };
+  }, []);
   async function readAllNotifications() {
     try {
       await markAllNotificationsAsRead();
