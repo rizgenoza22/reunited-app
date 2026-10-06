@@ -1726,6 +1726,7 @@ const [nearbyError, setNearbyError] = useState(null);
   const [shareAsStory, setShareAsStory] = useState(false);
   const [foundPetCapture, setFoundPetCapture] = useState(null); // { species, primaryColor, photoColor, locationLabel, captureLat, captureLng, gpsAccuracyMeters }
   const [foundPetsBoard, setFoundPetsBoard] = useState(INITIAL_FOUND_PETS_BOARD);
+  const [focusedFoundPetId, setFocusedFoundPetId] = useState(null);
 
   async function loadFoundPetsBoard() {
     try {
@@ -3788,6 +3789,7 @@ const selectedPet = [
 
       if (Number.isFinite(foundPetId) && foundPetId > 0) {
         await loadFoundPetsBoard();
+        setFocusedFoundPetId(foundPetId);
         setScreen("alerts");
       }
     } catch (error) {
@@ -4099,6 +4101,7 @@ const selectedPet = [
 nearbyError={nearbyError}
 onRefreshNearby={loadNearbyAlerts}
           foundPetsBoard={foundPetsBoard}
+          focusedFoundPetId={focusedFoundPetId}
           sightingsByPet={sightingsByPet}
           onOpenTrail={openTrailWithSound}
           onReportSighting={openReportSighting}
@@ -5194,6 +5197,7 @@ function AlertsScreen({
   nearbyError,
   onRefreshNearby,
   foundPetsBoard,
+  focusedFoundPetId,
   sightingsByPet,
   onOpenTrail,
   onReportSighting,
@@ -5211,6 +5215,26 @@ function AlertsScreen({
   const [currentAreaActive, setCurrentAreaActive] = useState(false);
   const [currentAreaUpdatedAt, setCurrentAreaUpdatedAt] = useState(null);
 
+  useEffect(() => {
+    const foundPetId = Number(focusedFoundPetId);
+
+    if (
+      !Number.isFinite(foundPetId) ||
+      foundPetId <= 0 ||
+      !Array.isArray(foundPetsBoard) ||
+      foundPetsBoard.length === 0
+    ) {
+      return;
+    }
+
+    const target = document.getElementById(`found-pet-${foundPetId}`);
+
+    if (target) {
+      window.setTimeout(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 120);
+    }
+  }, [focusedFoundPetId, foundPetsBoard]);
   async function refreshAlertAreaStatus() {
     setAlertAreaStatusLoading(true);
 
@@ -5634,7 +5658,19 @@ function AlertsScreen({
           </p>
           <div className="flex flex-col gap-3">
             {foundPetsBoard.map((f) => (
-              <div key={f.id} className="amr-panel rounded-lg p-3.5">
+              <div
+                id={`found-pet-${f.foundPetId ?? f.id}`}
+                key={f.id}
+                className="amr-panel rounded-lg p-3.5"
+                style={
+                  Number(f.foundPetId ?? f.id) === Number(focusedFoundPetId)
+                    ? {
+                        outline: "3px solid #E2572B",
+                        outlineOffset: "2px",
+                      }
+                    : undefined
+                }
+              >
                 <div className="flex items-center gap-3 mb-2">
                   <button
                     onClick={() =>
