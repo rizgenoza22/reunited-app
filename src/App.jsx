@@ -885,14 +885,7 @@ async function updatePotentialSightingMatchStatus(
 
 const PET_AVATAR_COLORS = ["#E2572B", "#2F6E62", "#8A5A44", "#6E7F5C", "#C97B3B"];
 
-// Preloaded so the Community feed feels alive before you post anything.
-// photoColor stands in for a real photo since this is a mock camera --
-// same pattern the sighting flow uses.
-// Public, opt-in Reunion Stories -- what an owner's thank-you message
-// becomes if they choose "Share Publicly" instead of keeping it between
-// just them and the Hero (see ReuniteScreen). Seeded here so the Community
-// feed's Reunion Stories tab isn't empty before anyone in this session has
-// gone through a full reunite-and-share flow.
+// Shared fallback colors used when Community content has no displayable photo.
 const POST_PHOTO_COLORS = ["#E2572B", "#2F6E62", "#C97B3B", "#6E7F5C", "#8A5A44"];
 
 const INITIAL_FOUND_PETS_BOARD = [];
@@ -1291,12 +1284,7 @@ function MainApp({ initialProfile, signupRank, onDeleteAccount, onLogout }) {
   const [radiusKm, setRadiusKm] = useState(1);
   const [activeCases, setActiveCases] = useState({}); // petId -> true
   const [caseDates, setCaseDates] = useState({}); // petId -> { lostAt: Date, foundAt: Date | null }
-  // Real backend integration for the core flow (case create/activate,
-  // sighting submit + trust-pipeline scoring, reunite). Only covers your
-  // own pets going through the normal Report Missing -> Activate ->
-  // ReportSightingScreen path -- Found Pet matching, Admin data, Messaging,
-  // Reunion Stories, and Founding Member rank all stay frontend-only mock,
-  // since the backend has no concept of any of those yet.
+  // Local UI state used alongside the authenticated backend recovery flow.
   const [backendCaseIdByPet, setBackendCaseIdByPet] = useState({});
   const [nearbyAlerts, setNearbyAlerts] = useState([]);
 const [nearbyLoading, setNearbyLoading] = useState(false);
@@ -6054,7 +6042,7 @@ function SettingsScreen({
                 : "not-allowed",
             }}
           >
-            Test Bark
+            Preview Bark
           </button>
         </div>
       </div>
@@ -14257,11 +14245,9 @@ function AdminDrilldownScreen({
   );
 }
 
-// Full detail view for a single item within any admin category -- reached
-// by tapping a row in the list. Field layout is category-specific since
-// each mock dataset has different shape; actionable categories (photo
-// reviews, user reports) get the same Approve/Reject/Resolve buttons
-// available inline on the list, so an admin doesn't have to go back to act.
+// Full detail view for a single item within any admin category.
+// Field layout is category-specific, while actionable categories keep
+// their Approve, Reject, or Resolve controls available in the detail view.
 function AdminItemDetailScreen({ category, item, onBack, onApprovePhoto, onRejectPhoto, onResolveReport }) {
   const titleByCategory = {
     activeCases: item.petName,
