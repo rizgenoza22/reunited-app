@@ -882,33 +882,6 @@ async function updatePotentialSightingMatchStatus(
 }
 
 
-const PETS_SEED = [
-  {
-    id: "milo",
-    backendPetId: 3,
-    name: "Milo",
-    species: "Dog",
-    breed: "Beagle mix",
-    color: "#E2572B",
-    sex: "Male",
-    birthday: "2022-03-10",
-    primaryColor: "Tricolor",
-    markings: "White-tipped tail, brown patch over left eye",
-    photos: ["#E2572B", "#C97B3B", "#8A5A44"],
-  },
-  {
-    id: "whiskers",
-    name: "Whiskers",
-    species: "Cat",
-    breed: "Tabby",
-    color: "#2F6E62",
-    sex: "Female",
-    birthday: "2024-05-20",
-    primaryColor: "Grey tabby",
-    markings: "White paws, small nick in left ear",
-    photos: ["#2F6E62", "#6E7F5C"],
-  },
-];
 
 const PET_AVATAR_COLORS = ["#E2572B", "#2F6E62", "#8A5A44", "#6E7F5C", "#C97B3B"];
 
@@ -1301,7 +1274,7 @@ function mapBackendHeroRecognition(item) {
 }
 
 
-function MainApp({ initialProfile, signupRank, messagesByThread, setMessagesByThread, onDeleteAccount, onLogout }) {
+function MainApp({ initialProfile, signupRank, onDeleteAccount, onLogout }) {
   // home | details | review | active | trail | reportSighting | reunite | reunited
   const [screen, setScreen] = useState("home");
   const [privacyConsents, setPrivacyConsents] = useState(null);
@@ -1522,7 +1495,7 @@ const [nearbyError, setNearbyError] = useState(null);
   }
 
   // Load the authenticated user's real pets from NestJS.
-  // This replaces PETS_SEED for the My Pets screen.
+  // Load the authenticated user's pets for the My Pets screen.
   useEffect(() => {
     let cancelled = false;
 
@@ -3431,8 +3404,9 @@ const selectedPet = [
     if (
       screen !== "messageThread" ||
       !messageThreadSubject?.isReal ||
-      !messageThreadSubject?.reportId ||
-      !messageThreadSubject?.otherUserId
+      !messageThreadSubject?.otherUserId ||
+      (!messageThreadSubject?.reportId &&
+        !messageThreadSubject?.foundPetId)
     ) {
       return;
     }
@@ -3441,10 +3415,15 @@ const selectedPet = [
 
     async function refreshOpenMessageThread() {
       try {
-        const rows = await getMessageThread(
-          messageThreadSubject.reportId,
-          messageThreadSubject.otherUserId,
-        );
+        const rows = messageThreadSubject.isFoundPet
+          ? await getFoundPetMessageThread(
+              messageThreadSubject.foundPetId,
+              messageThreadSubject.otherUserId,
+            )
+          : await getMessageThread(
+              messageThreadSubject.reportId,
+              messageThreadSubject.otherUserId,
+            );
 
         if (cancelled) {
           return;
@@ -3502,9 +3481,6 @@ const selectedPet = [
     setMessageThreadSubject(subject);
     setScreen("messageThread");
 
-    if (!subject.isReal) {
-      return;
-    }
 
     setRealThreadLoading(true);
     setRealThreadError(null);
@@ -3589,14 +3565,6 @@ const selectedPet = [
 
       return;
     }
-
-    // Existing demo/admin messaging stays unchanged for non-backend threads.
-    const outgoing = { sender: "you", text, timeLabel: "just now" };
-    setMessagesByThread((prev) => ({
-      ...prev,
-      [threadId]: [...(prev[threadId] || []), outgoing],
-    }));
-
 
   }
 
@@ -4461,26 +4429,10 @@ onRefreshNearby={loadNearbyAlerts}
         <MessageThreadScreen
           title={messageThreadSubject.title}
           subtitle={messageThreadSubject.subtitle}
-          messages={
-            messageThreadSubject.isReal
-              ? realThreadMessages
-              : messagesByThread[messageThreadSubject.id] || []
-          }
-          loading={
-            messageThreadSubject.isReal
-              ? realThreadLoading
-              : false
-          }
-          sending={
-            messageThreadSubject.isReal
-              ? realThreadSending
-              : false
-          }
-          error={
-            messageThreadSubject.isReal
-              ? realThreadError
-              : null
-          }
+          messages={realThreadMessages}
+          loading={realThreadLoading}
+          sending={realThreadSending}
+          error={realThreadError}
           onBack={() => setScreen(messageThreadSubject.origin || "home")}
           onSend={(text) => sendMessage(messageThreadSubject.id, text)}
           canModerate={Boolean(
@@ -14691,11 +14643,6 @@ export default function App() {
         "",
     ).toUpperCase() === "ADMIN";
   const [signupRank, setSignupRank] = useState(null);
-  // Lives here (not inside MainApp) specifically so it survives switching to
-  // the Admin view, which unmounts MainApp entirely -- otherwise Admin could
-  // never see messages sent while the app view was active.
-  const [messagesByThread, setMessagesByThread] = useState({});
-
 
   // Logout: clears the session so this device stops being authenticated,
   // without touching the account itself (unlike deleteAccount above, which
@@ -14706,7 +14653,6 @@ export default function App() {
     localStorage.removeItem("user");
     setOnboardingProfile(null);
     setSignupRank(null);
-    setMessagesByThread({});
     setView("onboarding");
   }
 
@@ -14751,7 +14697,6 @@ export default function App() {
     localStorage.removeItem("user");
     setOnboardingProfile(null);
     setSignupRank(null);
-    setMessagesByThread({});
     setView("onboarding");
   }
 
@@ -14833,8 +14778,7 @@ export default function App() {
           <MainApp
             initialProfile={onboardingProfile}
             signupRank={signupRank}
-            messagesByThread={messagesByThread}
-            setMessagesByThread={setMessagesByThread}
+
             onDeleteAccount={deleteAccount}
             onLogout={logout}
           />
