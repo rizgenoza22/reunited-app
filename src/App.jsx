@@ -9884,7 +9884,15 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onReport,
           )}
           <div className="flex flex-col gap-4">
             {posts.map((post) => (
-              <div key={post.id} className="amr-panel rounded-lg overflow-hidden">
+              <div
+                key={post.id}
+                className="amr-panel rounded-lg overflow-hidden"
+                style={
+                  post.postType === "FOUND_PET_REUNION"
+                    ? { border: "2px solid #D9A441", background: "#FFF9EA" }
+                    : undefined
+                }
+              >
                 <div
                   className="relative w-full h-48 flex items-center justify-center overflow-hidden"
                   style={{ background: post.photoColor || "#2F6E62" }}
@@ -9898,8 +9906,25 @@ function FeedScreen({ posts, communityLoading, communityError, onLike, onReport,
                   ) : (
                     <HeartMark size={48} color="#F2E9D8" />
                   )}
+                  {post.postType === "FOUND_PET_REUNION" && (
+                    <div
+                      className="absolute top-3 left-3 rounded-full px-3 py-1.5 text-xs font-bold shadow-md"
+                      style={{
+                        background: "#FFF1C2",
+                        color: "#61410D",
+                        border: "1px solid #D9A441",
+                      }}
+                    >
+                      🎉 HAPPY REUNION!
+                    </div>
+                  )}
                 </div>
                 <div className="p-3.5">
+                  {post.postType === "FOUND_PET_REUNION" && (
+                    <p className="font-bold text-base mb-2" style={{ color: "#80540D" }}>
+                      Another furry friend is home!
+                    </p>
+                  )}
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-sm">{post.dogName}</span>
                     <span className="text-xs" style={{ color: "#6B6459" }}>{post.timeLabel}</span>
