@@ -102,6 +102,7 @@ import {
   getFoundPets,
   createFoundPet,
   uploadFoundPetPhoto,
+  markFoundPetReunited,
 } from "./api";
 // The app's icon mark -- the actual approved badge image (navy circle,
 // coral ring, cream heart), embedded as a data URI. Replaces both the
@@ -1268,6 +1269,19 @@ function mapBackendHeroRecognition(item) {
 
 
 function MainApp({ initialProfile, signupRank, onDeleteAccount, onLogout }) {
+  const [currentUserId] = useState(() => {
+    let storedUser = null;
+    try {
+      storedUser = JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      storedUser = null;
+    }
+    const id = Number(
+      initialProfile?.user_id ?? initialProfile?.id ??
+      storedUser?.user_id ?? storedUser?.id
+    );
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
+  });
   // home | details | review | active | trail | reportSighting | reunite | reunited
   const [screen, setScreen] = useState("home");
   const [privacyConsents, setPrivacyConsents] = useState(null);
@@ -1671,6 +1685,43 @@ const [nearbyError, setNearbyError] = useState(null);
   const [foundPetsBoard, setFoundPetsBoard] = useState(INITIAL_FOUND_PETS_BOARD);
   const [focusedFoundPetId, setFocusedFoundPetId] = useState(null);
 
+  const [reunitingFoundPetId, setReunitingFoundPetId] = useState(null);
+
+  async function handleMarkFoundPetReunited(foundPet) {
+    const foundPetId = Number(foundPet?.foundPetId);
+    const finderUserId = Number(foundPet?.finderUserId);
+
+    if (
+      currentUserId == null ||
+      finderUserId !== currentUserId ||
+      !Number.isSafeInteger(foundPetId) ||
+      foundPetId <= 0 ||
+      reunitingFoundPetId !== null
+    ) return;
+
+    if (!window.confirm(
+      "Confirm this found pet has been reunited with its owner? This will remove the report from the active Found Pets Board."
+    )) return;
+
+    setReunitingFoundPetId(foundPetId);
+
+    try {
+      await markFoundPetReunited(foundPetId);
+      setFoundPetsBoard((current) =>
+        current.filter((item) => Number(item.foundPetId) !== foundPetId)
+      );
+      await loadFoundPetsBoard();
+    } catch (error) {
+      console.error("Unable to mark found pet reunited:", error);
+      window.alert(
+        error?.message ||
+        "Unable to mark this found pet as reunited. Please try again."
+      );
+    } finally {
+      setReunitingFoundPetId(null);
+    }
+  }
+
   async function loadFoundPetsBoard() {
     try {
       const response = await getFoundPets();
@@ -1718,7 +1769,7 @@ const [nearbyError, setNearbyError] = useState(null);
 
           primaryColor:
             row.primary_color ||
-            "Not noted",
+            "",
 
           comment:
             row.description ||
@@ -4097,6 +4148,9 @@ const selectedPet = [
 nearbyError={nearbyError}
 onRefreshNearby={loadNearbyAlerts}
           foundPetsBoard={foundPetsBoard}
+          currentUserId={currentUserId}
+          reunitingFoundPetId={reunitingFoundPetId}
+          onMarkFoundPetReunited={handleMarkFoundPetReunited}
           focusedFoundPetId={focusedFoundPetId}
           sightingsByPet={sightingsByPet}
           onOpenTrail={openTrailWithSound}
@@ -5175,6 +5229,9 @@ function AlertsScreen({
   onRefreshNearby,
   foundPetsBoard,
   focusedFoundPetId,
+  currentUserId,
+  reunitingFoundPetId,
+  onMarkFoundPetReunited,
   sightingsByPet,
   onOpenTrail,
   onReportSighting,
@@ -5675,7 +5732,7 @@ function AlertsScreen({
                     )}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold">{f.species} · {f.primaryColor}</div>
+                    <div className="text-sm font-semibold">{f.species}{f.primaryColor ? ` · ${f.primaryColor}` : ""}</div>
                     <div className="text-xs" style={{ color: "#6B6459" }}>
                       {f.locationLabel} · {f.timeLabel} · found by {f.finderName}
                     </div>
@@ -5694,6 +5751,19 @@ function AlertsScreen({
                   <MessageCircle size={13} />
                   Message {f.finderName}
                 </button>
+                {currentUserId != null &&
+                  Number(f.finderUserId) === currentUserId && (
+                    <button
+                      type="button"
+                      disabled={reunitingFoundPetId !== null}
+                      onClick={() => onMarkFoundPetReunited(f)}
+                      className="amr-btn-secondary w-full mt-2 py-1.5 rounded-md text-xs"
+                    >
+                      {reunitingFoundPetId === Number(f.foundPetId)
+                        ? "Updating..."
+                        : "Mark as Reunited"}
+                    </button>
+                  )}
               </div>
             ))}
           </div>
@@ -5707,7 +5777,7 @@ function AlertsScreen({
               ? enlargedFoundPet.photos
               : [enlargedFoundPet.photoUrl].filter(Boolean)
           }
-          title={`${enlargedFoundPet.species} · ${enlargedFoundPet.primaryColor}`}
+          title={`${enlargedFoundPet.species}${enlargedFoundPet.primaryColor ? ` · ${enlargedFoundPet.primaryColor}` : ""}`}
           subtitle={`${enlargedFoundPet.locationLabel} · ${enlargedFoundPet.timeLabel}`}
           onClose={() => setEnlargedFoundPet(null)}
         />
