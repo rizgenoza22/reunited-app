@@ -1317,25 +1317,10 @@ const [nearbyError, setNearbyError] = useState(null);
   const [notificationsError, setNotificationsError] = useState(null);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
 
-  const [animalSoundEffectsEnabled, setAnimalSoundEffectsEnabled] = useState(
-    () => localStorage.getItem("reunited_animal_sounds_enabled") !== "false",
-  );
-
   const animalSoundAudioRef = useRef(null);
 
-  function setAnimalSoundEffectsPreference(enabled) {
-    const nextValue = Boolean(enabled);
-
-    setAnimalSoundEffectsEnabled(nextValue);
-
-    localStorage.setItem(
-      "reunited_animal_sounds_enabled",
-      String(nextValue),
-    );
-  }
-
   function playAnimalSound(soundUrl, label) {
-    if (!animalSoundEffectsEnabled || !soundUrl) return;
+    if (!soundUrl) return;
 
     try {
       if (animalSoundAudioRef.current) {
@@ -1359,9 +1344,6 @@ const [nearbyError, setNearbyError] = useState(null);
     }
   }
 
-  function playDogBark() {
-    playAnimalSound(dogBarkSoundUrl, "Dog bark");
-  }
 
   function playPetSound(pet) {
     const species = String(pet?.species || "")
@@ -4201,9 +4183,6 @@ onRefreshNearby={loadNearbyAlerts}
           onEditProfile={() => setScreen("profileEdit")}
           onChangePassword={() => setScreen("changePassword")}
           onNotificationSettings={() => setScreen("notificationSettings")}
-          animalSoundEffectsEnabled={animalSoundEffectsEnabled}
-          onAnimalSoundEffectsChange={setAnimalSoundEffectsPreference}
-          onTestAnimalSound={playDogBark}
           onPrivacyPolicy={() => setScreen("privacyPolicy")}
           onTerms={() => setScreen("terms")}
           onContactSupport={() => {
@@ -5951,9 +5930,6 @@ function SettingsScreen({
   onEditProfile,
   onChangePassword,
   onNotificationSettings,
-  animalSoundEffectsEnabled,
-  onAnimalSoundEffectsChange,
-  onTestAnimalSound,
   onPrivacyPolicy,
   onTerms,
   onContactSupport,
@@ -5983,69 +5959,6 @@ function SettingsScreen({
         ))}
       </div>
 
-      <div className="font-semibold text-xs mb-2" style={{ color: "#6B6459" }}>
-        ANIMAL SOUND EFFECTS
-      </div>
-
-      <div className="amr-panel rounded-lg mb-5 overflow-hidden">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-sm font-medium">Dog Bark Sound</div>
-              <div className="text-xs mt-0.5" style={{ color: "#6B6459" }}>
-                Play a short single bark on supported pet actions.
-              </div>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={animalSoundEffectsEnabled}
-              aria-label="Animal sound effects"
-              onClick={() =>
-                onAnimalSoundEffectsChange(!animalSoundEffectsEnabled)
-              }
-              className="relative shrink-0 rounded-full transition-colors"
-              style={{
-                width: "48px",
-                height: "28px",
-                backgroundColor: animalSoundEffectsEnabled
-                  ? "#2F6E62"
-                  : "#D6D0C7",
-              }}
-            >
-              <span
-                className="absolute rounded-full bg-white transition-all"
-                style={{
-                  width: "22px",
-                  height: "22px",
-                  top: "3px",
-                  left: animalSoundEffectsEnabled ? "23px" : "3px",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-                }}
-              />
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={onTestAnimalSound}
-            disabled={!animalSoundEffectsEnabled}
-            className="mt-3 text-sm font-semibold"
-            style={{
-              color: animalSoundEffectsEnabled
-                ? "#2F6E62"
-                : "#A99C88",
-              opacity: animalSoundEffectsEnabled ? 1 : 0.6,
-              cursor: animalSoundEffectsEnabled
-                ? "pointer"
-                : "not-allowed",
-            }}
-          >
-            Preview Bark
-          </button>
-        </div>
-      </div>
       <button
         onClick={onLogout}
         className="w-full text-left flex items-center justify-between px-4 py-3 rounded-lg mb-5"
